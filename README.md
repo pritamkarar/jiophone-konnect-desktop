@@ -1,125 +1,240 @@
-# Jiophone Konnect
+# Konnect — JioPhone Desktop Suite
 
-A desktop PC suite for the JioPhone (KaiOS) over Bluetooth: place and take
-calls from the PC, import contacts, keep call logs, record calls, and export
-reports.
+[![Platform](https://img.shields.io/badge/platform-Linux-333?logo=linux)](https://github.com/pritamkarar/jiophone-konnect-desktop)
+[![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Konnect is a thin Electron GUI over three Linux daemons that already speak the
-Bluetooth profiles — **oFono** (HFP hands-free: dial, answer, hangup, call
-state, network, battery), **BlueZ obexd** (contacts pushed in over OBEX), and
-**PipeWire/WirePlumber** (SCO call audio). There is no AT-command parsing and
-no OBEX protocol code in this repo.
+**Konnect is a Linux desktop companion for JioPhone (KaiOS) devices over Bluetooth.** It turns a supported JioPhone into a practical desktop phone: make and receive calls, manage contacts, browse call history, record calls, and export reports — without relying on AT-command or OBEX protocol implementations inside the app.
 
-Developed against a LYF JioPhone F120B on Ubuntu 24.04.
+> **Status:** Experimental / hardware-focused project. Developed and tested with a **LYF JioPhone F120B on Ubuntu 24.04**. Other JioPhone/KaiOS models may behave differently.
 
-## What it does
+## ✨ Features
 
-- **Calls** — dial, answer, hang up, DTMF, live call state and duration, an
-  incoming-call popup with contact lookup
-- **Contacts** — imported by pushing them from the handset over OBEX
-- **Call logs** — searchable history, stats, recently dialled in the tray menu
-- **Recording** — per-call capture via `pw-record`, with a waveform player
-- **Export** — calls/contacts as CSV, contacts as vCard, a PDF report
-- **Google (optional)** — sign-in, contact sync, backup of recordings to Drive
-- **Setup wizard** — checks the four host prerequisites and fixes them
+- **📞 Calls** — Dial numbers, answer and hang up calls, send DTMF tones, and view live call state and duration.
+- **🔔 Incoming-call popup** — Get a desktop notification with contact lookup for incoming calls.
+- **👤 Contacts** — Import contacts from the phone over Bluetooth OBEX.
+- **🕘 Call history** — Search call logs, view statistics, and access recently dialled numbers from the tray menu.
+- **🎙️ Call recording** — Capture call audio with `pw-record` and play recordings with a waveform view.
+- **📤 Export** — Export calls and contacts to CSV, contacts to vCard, and generate a PDF report.
+- **☁️ Optional Google integration** — Sign in, read Google Contacts, and back up Konnect recordings to Google Drive.
+- **🧙 Setup wizard** — Checks the required Linux services and guides you through fixing common Bluetooth/telephony configuration problems.
+- **🧪 Mock backend** — Run the complete UI without a physical phone for development and testing.
 
-### What it can't do
+## 🖥️ Supported platform
 
-- **SMS is impossible over Bluetooth on this handset.** Messages need the MAP
-  profile; the F120B's SDP records don't advertise it. No amount of effort
-  changes this.
-- **PBAP phonebook pull is a dead end** on this handset, which is why contacts
-  arrive by the phone pushing them, rather than the PC fetching them.
-- **Windows** has a stub backend only. Linux is the supported platform.
-
-## Running it
-
-`make` on its own lists every target.
-
-```
-make dev     # run against the real handset
-make mock    # run against the mock backend, no handset needed
-make test    # unit tests (node --test)
-make dist    # build the AppImage and .deb into dist/
-```
-
-`make verify-<name> ARGS=…` runs the manual hardware probes in `scripts/` —
-`verify-device`, `verify-telephony`, `verify-recording`, `verify-pairing-agent`.
-These talk to a real paired handset; the unit tests don't.
-
-### Mock mode
-
-`KONNECT_MOCK=1` swaps in a fake backend so the whole UI is exercisable with no
-hardware. Extra flags shape what that fake reports:
-
-| Variable | Effect |
+| Platform | Status |
 | --- | --- |
-| `KONNECT_MOCK_NO_PHONE=1` | scanning turns up only non-handsets, so the empty state holds |
-| `KONNECT_MOCK_BT_OFF=1` | Bluetooth adapter reports powered off |
-| `KONNECT_MOCK_INCOMING=<ms>` | simulate an incoming call after that many milliseconds |
-| `KONNECT_MOCK_INCOMING_NUMBER` | the number it comes from (use one in Contacts to exercise caller-ID lookup) |
+| **Linux** | ✅ Supported |
+| Windows | ⚠️ Stub backend only |
+| macOS | ❌ Not supported |
 
-## Releasing
+The supported configuration uses these Linux components:
 
-Bump the version and push to `main`:
+- **oFono** — HFP telephony, dialing, call control, network state, and battery state
+- **BlueZ `obexd`** — Bluetooth OBEX contact transfer
+- **PipeWire / WirePlumber** — SCO call audio
+- **Electron** — Desktop UI and application shell
 
+Konnect intentionally stays thin around these system services. It does **not** implement the Bluetooth HFP/OBEX protocols itself or parse modem AT commands.
+
+## 🚫 Known limitations
+
+### SMS
+SMS is **not supported** on the tested LYF JioPhone F120B. The handset does not advertise the Bluetooth MAP profile required for SMS messaging, so a desktop SMS client cannot be implemented through the available Bluetooth services alone.
+
+### Phonebook pull
+PBAP phonebook retrieval is not available on the tested handset. Contacts therefore arrive by the phone **pushing** them to the computer over OBEX rather than the desktop pulling the address book.
+
+### Hardware compatibility
+Bluetooth profiles and firmware behavior vary between JioPhone models. A device that is not the tested F120B may require additional work or may not expose the required profiles at all.
+
+## 🚀 Quick start
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/pritamkarar/jiophone-konnect-desktop.git
+cd jiophone-konnect-desktop
 ```
-npm version minor    # or patch / major - edits package.json
-git push
+
+### 2. Install dependencies
+
+```bash
+npm install
 ```
 
-`.github/workflows/release.yml` notices the version field moved, runs the
-tests, builds the `.deb` and AppImage, and uploads them to a **draft** GitHub
-Release. Review it, then press Publish — that is also the moment GitHub
-creates the `v0.2.0` tag. Touching `package.json` without changing the version
-builds nothing.
+### 3. Start Konnect
 
-To do the same by hand: `make dist ARGS="--publish always"` with `GH_TOKEN`
-set, or plain `make dist` to build into `dist/` without uploading.
+For the real handset:
 
-## First run
+```bash
+make dev
+```
 
-The in-app setup wizard checks and repairs four things:
+For UI development without a phone:
 
-1. oFono is installed
-2. the oFono service is running
-3. PipeWire hands HFP signalling to oFono, via
-   `~/.config/wireplumber/bluetooth.lua.d/51-konnect-hfp.lua`
-4. the handset's HFP modem is online
+```bash
+make mock
+```
 
-Step 3 is the load-bearing one: PipeWire's native HFP backend otherwise owns
-RFCOMM channel 3 and oFono can never claim it, so the modem never comes up.
-The restart order in that remedy matters too. Every check offers the exact
-shell command to run by hand if the privileged path is unavailable — see
-`src/main/setup.js`, which is the source of truth for both.
+Run the test suite with:
 
-## Google account (optional)
+```bash
+make test
+```
 
-Absent credentials mean the feature is simply unconfigured — never a startup
-failure. To enable it, drop an OAuth client at
-`~/.config/konnect/google.json`. The requested scopes are deliberately narrow:
-`contacts.readonly` (Konnect never writes to your address book) and
-`drive.file` (it can only touch files it created).
+Build Linux packages with:
 
-## Where your data lives
+```bash
+make dist
+```
 
-| Path | Contents |
+The build produces an **AppImage** and a **`.deb`** package in `dist/`.
+
+## 🔧 First-time setup
+
+On first launch, Konnect checks the host configuration needed for telephony:
+
+1. `oFono` is installed.
+2. The `oFono` service is running.
+3. PipeWire/WirePlumber is configured so `oFono` can own the Bluetooth HFP modem.
+4. The handset's HFP modem is online.
+
+The PipeWire/WirePlumber configuration is particularly important. On the tested setup, the native PipeWire HFP backend can otherwise claim the RFCOMM channel needed by oFono, preventing the modem from coming online.
+
+The setup wizard shows the commands needed to repair the configuration when the privileged automatic path is unavailable. The implementation lives in `src/main/setup.js`.
+
+## 🧪 Mock mode
+
+Mock mode lets you exercise the desktop UI without a JioPhone:
+
+```bash
+make mock
+```
+
+You can also shape the simulated environment with these variables:
+
+| Variable | Purpose |
 | --- | --- |
-| `~/Konnect/recordings` | call recordings |
-| `<electron userData>/konnect.db` | contacts, call logs, settings |
-| `~/.config/konnect/google.json` | Google OAuth client, if configured |
+| `KONNECT_MOCK=1` | Enable the mock backend |
+| `KONNECT_MOCK_NO_PHONE=1` | Simulate a scan with no compatible handset |
+| `KONNECT_MOCK_BT_OFF=1` | Simulate Bluetooth being powered off |
+| `KONNECT_MOCK_INCOMING=<ms>` | Trigger a simulated incoming call after `<ms>` milliseconds |
+| `KONNECT_MOCK_INCOMING_NUMBER=<number>` | Set the simulated caller number |
 
-## Layout
+Example:
 
-```
-src/main/            Electron main process — IPC, tray, call session, store
-src/main/backend/    linux/ (BlueZ + oFono + PipeWire), mock/, windows/ stub
-src/renderer/        UI: dialer, call logs, settings, onboarding
-src/shared/          phone numbers, vCard, waveform peaks, speed dial
-test/                node --test suites
-scripts/             manual hardware probes
-docs/superpowers/    design specs and implementation plans
+```bash
+KONNECT_MOCK=1 KONNECT_MOCK_INCOMING=3000 KONNECT_MOCK_INCOMING_NUMBER=+919876543210 npm start
 ```
 
-`src/main/backend/interface.js` holds the contract every backend implements;
-adding a platform means satisfying that list and nothing else.
+## 🛠️ Development
+
+Konnect is an Electron application with a small platform backend abstraction.
+
+```text
+src/main/             Electron main process, IPC, tray, calls, persistence
+src/main/backend/     Linux, mock and Windows backend implementations
+src/renderer/         Desktop UI: dialer, calls, contacts, settings, onboarding
+src/shared/           Shared phone-number, vCard, waveform and speed-dial logic
+test/                 Node.js test suites
+scripts/              Manual hardware verification probes
+docs/                 Design and implementation documentation
+assets/               Application assets and icons
+```
+
+The backend contract is defined in:
+
+```text
+src/main/backend/interface.js
+```
+
+Adding another platform means implementing that interface without changing the rest of the application architecture.
+
+## 🔍 Hardware verification
+
+The repository includes manual probes for validating the Bluetooth/telephony stack against a real paired phone.
+
+Examples:
+
+```bash
+make verify-device
+make verify-telephony ARGS=+919876543210
+make verify-recording
+make verify-pairing-agent
+```
+
+These probes communicate with real host services and hardware; they are separate from the automated unit tests.
+
+## ☁️ Optional Google integration
+
+Google integration is optional. Without credentials, Konnect starts normally and simply leaves Google features unconfigured.
+
+To enable it, place an OAuth client file at:
+
+```text
+~/.config/konnect/google.json
+```
+
+Konnect requests narrow permissions:
+
+- `contacts.readonly` — read Google Contacts; Konnect does not write to your address book.
+- `drive.file` — access Drive files created by Konnect.
+
+## 📁 Data locations
+
+| Location | Contents |
+| --- | --- |
+| `~/Konnect/recordings` | Call recordings |
+| `<electron userData>/konnect.db` | Contacts, call logs and application settings |
+| `~/.config/konnect/google.json` | Optional Google OAuth client configuration |
+
+Review these locations before sharing a machine or backup, because call recordings and call metadata can contain sensitive information.
+
+## 📦 Build & release
+
+The project uses `electron-builder` to create Linux packages.
+
+```bash
+make dist
+```
+
+For a release upload using GitHub credentials:
+
+```bash
+make dist ARGS="--publish always"
+```
+
+The repository's release workflow watches the package version. Bumping the version in `package.json` is what triggers a release build.
+
+## 🧑‍💻 Contributing
+
+Contributions are welcome, especially for:
+
+- testing additional JioPhone models and Ubuntu/Linux releases
+- improving device detection and Bluetooth compatibility
+- documenting setup steps for different PipeWire/WirePlumber configurations
+- improving the mock backend and automated tests
+- adding support for additional desktop platforms
+
+Before opening a pull request, run:
+
+```bash
+make test
+```
+
+For hardware-related changes, also run the relevant `verify-*` probe against a real supported handset.
+
+## ⚠️ Disclaimer
+
+This is an independent open-source project and is **not affiliated with or endorsed by Jio, Reliance Industries, LYF, or KaiOS Technologies**.
+
+Bluetooth profile support depends on the phone firmware, Linux distribution, and installed services. Results may vary by device and system configuration.
+
+## 📄 License
+
+Released under the **MIT License**. See [LICENSE](LICENSE) for details.
+
+## ⭐ Support the project
+
+If Konnect is useful to you, consider giving the repository a **star**. Bug reports, hardware compatibility reports, documentation improvements, and pull requests are especially valuable for expanding support beyond the tested JioPhone F120B setup.
