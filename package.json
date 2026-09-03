@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "PC suite for JioPhone (KaiOS) over Bluetooth",
   "author": "Pritam Karar <pritamkarar2@gmail.com>",
-  "repository": "https://github.com/pritamkarar/jiophone-konnect.git",
+  "repository": "https://github.com/pritamkarar/jiophone-konnect-desktop.git",
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
