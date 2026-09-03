@@ -1,4 +1,4 @@
-# Konnect
+# Jiophone Konnect
 
 A desktop PC suite for the JioPhone (KaiOS) over Bluetooth: place and take
 calls from the PC, import contacts, keep call logs, record calls, and export
