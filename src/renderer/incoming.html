@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Incoming call</title>
+  <link rel="stylesheet" href="fonts.css">
+  <style>
+    /* Same tokens as styles.css - this popup is its own BrowserWindow, so it
+       cannot inherit them and the design's values are repeated here. */
+    :root {
+      color-scheme: dark;
+      --wbg: #070B1A; --fg: #EEF2FF;
+      --fg2: rgba(238, 242, 255, .62); --fg3: rgba(238, 242, 255, .36);
+      --glass: rgba(255, 255, 255, .06); --glass2: rgba(255, 255, 255, .11);
+      --gb: rgba(255, 255, 255, .12);
+      --gsh: 0 24px 70px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .1);
+      --acc: #3D7BFF; --acc2: #0A2885; --bad: #E0443E;
+      --blob1: rgba(61, 123, 255, .55); --blob3: rgba(130, 90, 255, .35);
+      --sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        color-scheme: light;
+        --wbg: #E8EDFA; --fg: #0B1230;
+        --fg2: rgba(11, 18, 48, .64); --fg3: rgba(11, 18, 48, .4);
+        --glass: rgba(255, 255, 255, .5); --glass2: rgba(255, 255, 255, .78);
+        --gb: rgba(255, 255, 255, .9);
+        --gsh: 0 24px 70px rgba(10, 40, 133, .14), inset 0 1px 0 #fff;
+        --acc: #1F5BFF;
+        --blob1: rgba(61, 123, 255, .45); --blob3: rgba(160, 120, 255, .35);
+      }
+    }
+    @keyframes jkBar { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+
+    * { box-sizing: border-box; }
+    body {
+      /* No padding: the card IS the window. The 36px frame around it was a
+         second box the popup did not need. */
+      margin: 0; height: 100vh; padding: 0; position: relative; overflow: hidden;
+      background: var(--wbg); color: var(--fg);
+      font: 400 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased;
+      /* Frameless, so the card itself is the only way to move the popup out
+         of the way. The buttons opt back out below. */
+      -webkit-app-region: drag;
+    }
+    .blob { position: absolute; border-radius: 50%; pointer-events: none; }
+    .blob.a { width: 320px; height: 320px; background: var(--blob1); filter: blur(80px); left: -80px; top: -100px; }
+    .blob.b { width: 260px; height: 260px; background: var(--blob3); filter: blur(80px); right: -80px; bottom: -80px; }
+
+    .card {
+      position: relative; height: 100%;
+      border-radius: 22px; padding: 20px; overflow: hidden;
+      background: var(--glass); border: 1px solid var(--gb);
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+      box-shadow: var(--gsh);
+      display: flex; flex-direction: column; gap: 18px;
+    }
+
+    .head {
+      display: flex; align-items: center; justify-content: space-between;
+      font: 500 11px var(--sans); color: var(--fg3);
+    }
+    .head .via { display: flex; align-items: center; gap: 6px; }
+    .head .right { display: flex; align-items: center; gap: 10px; }
+    /* Matches #wincontrols in the main window: same size, same hover, same
+       corner. This one closes the POPUP, not the call. */
+    .head .close {
+      width: 24px; height: 22px; padding: 0; border: 0; border-radius: 7px;
+      background: none; color: var(--fg3); cursor: pointer;
+      display: grid; place-items: center;
+      -webkit-app-region: no-drag;
+    }
+    .head .close:hover { background: var(--glass2); color: var(--fg); }
+    .bars { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
+    .bars i { width: 3px; height: 100%; border-radius: 2px; background: var(--acc); animation: jkBar 1s ease-in-out infinite; }
+    .bars i:nth-child(2) { animation-delay: .2s; }
+    .bars i:nth-child(3) { animation-delay: .4s; }
+    .bars i:nth-child(4) { animation-delay: .6s; }
+    @media (prefers-reduced-motion: reduce) { .bars i { animation: none; } }
+
+    .who { display: flex; align-items: center; gap: 14px; }
+    .avatar {
+      width: 56px; height: 56px; border-radius: 50%; flex: none;
+      background: linear-gradient(135deg, var(--acc), var(--acc2));
+      display: grid; place-items: center; color: #fff;
+      font: 700 18px var(--sans); box-shadow: 0 10px 30px rgba(31, 91, 255, .35);
+    }
+    .name { font: 700 20px var(--sans); letter-spacing: -.01em; }
+    .number { font: 400 12.5px var(--mono); color: var(--fg2); overflow-wrap: anywhere; }
+
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto; }
+    .actions button {
+      height: 46px; border: 0; border-radius: 14px; color: #fff;
+      font: 600 14px var(--sans); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    .reject { background: var(--bad); box-shadow: 0 10px 26px rgba(224, 68, 62, .35); }
+    .answer { background: linear-gradient(135deg, #34D399, #0FA36B); box-shadow: 0 10px 26px rgba(15, 163, 107, .4); }
+  </style>
+</head>
+<body>
+  <div class="blob a"></div>
+  <div class="blob b"></div>
+
+  <div class="card">
+    <div class="head">
+      <div class="via">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:var(--acc)"><path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11"/></svg>
+        Incoming via JioPhone
+      </div>
+      <div class="right">
+        <div class="bars"><i></i><i></i><i></i><i></i></div>
+        <!-- Silences the ring and hides this window. The call keeps ringing on
+             the handset - that is what makes this not a Decline. -->
+        <button class="close" id="close" aria-label="Close, keep ringing on the phone"
+                title="Close, keep ringing on the phone">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="who">
+      <div class="avatar" id="avatar">?</div>
+      <div>
+        <div class="name" id="name">Unknown</div>
+        <div class="number" id="number"></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="reject" id="reject">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.6a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.5 2.6.7a2 2 0 0 1 1.7 2z" transform="rotate(133 12 12)"/></svg>
+        Decline
+      </button>
+      <button class="answer" id="answer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.6a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.5 2.6.7a2 2 0 0 1 1.7 2z"/></svg>
+        Accept
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const name = params.get('name') || 'Unknown';
+    document.getElementById('name').textContent = name;
+    document.getElementById('number').textContent = params.get('number') || '';
+    // Initial from the caller's name, matching the canvas's avatar. Falls back
+    // to "?" for a name that starts with punctuation or is empty.
+    const initial = name.trim().charAt(0).toUpperCase();
+    document.getElementById('avatar').textContent = /[A-Z0-9]/.test(initial) ? initial : '?';
+
+    // Unawaited these swallowed every failure: the window stayed up, the
+    // handset kept ringing, and the user believed they had rejected the call.
+    // The main window's dialer already surfaces these; the popup did not.
+    const report = (err) => {
+      document.getElementById('number').textContent = `Failed: ${err.message}`;
+    };
+    document.getElementById('answer').addEventListener('click',
+      () => window.konnect.answer(params.get('id')).catch(report));
+    document.getElementById('reject').addEventListener('click',
+      () => window.konnect.hangup(params.get('id')).catch(report));
+    // No hangup: main silences the ring and closes this window, and the call
+    // carries on ringing where it can still be answered.
+    document.getElementById('close').addEventListener('click',
+      () => window.konnect.dismissIncoming().catch(report));
+  </script>
+</body>
+</html>

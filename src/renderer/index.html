@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>JioPhone Konnect</title>
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="blobs" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <header id="titlebar">
+    <div class="brand">
+      <!-- The canvas's own title bar draws assets/logo.svg at 22px. Its
+           small-size cut (one arc, stroke 16) was tried here and closes up
+           into a blob at this size - the thin arcs read better. -->
+      <img class="mark" src="../../assets/logo.svg" alt="">
+      JioPhone Konnect
+    </div>
+
+    <!-- Folded in from the old Status view: the canvas shows live handset
+         state here rather than on a page of its own. renderStatus() still
+         writes the same five ids. -->
+    <div id="status-pill">
+      <span class="dot" id="s-dot"></span>
+      <span id="s-model">-</span>
+      <span class="meta">· <span id="s-bat">-</span> · <span id="s-op">-</span></span>
+    </div>
+
+    <div id="wincontrols">
+      <button id="win-min" title="Minimise" aria-label="Minimise">&#8212;</button>
+      <button id="win-max" title="Maximise" aria-label="Maximise">&#9744;</button>
+      <button id="win-close" title="Close" aria-label="Close">&#10005;</button>
+    </div>
+  </header>
+
+  <div id="banners">
+    <div id="s-error" class="banner" hidden></div>
+    <div id="s-route" class="banner" hidden></div>
+  </div>
+
+  <div id="shell">
+    <nav id="nav" class="glass">
+      <button data-view="dialer" class="active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.6a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.5 2.6.7a2 2 0 0 1 1.7 2z"/></svg>
+        Dialer
+      </button>
+      <button data-view="calls">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Call logs
+      </button>
+      <button data-view="settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        Settings
+      </button>
+
+      <div class="device-chip">
+        <img src="../../assets/jiophone-colored.svg" alt="">
+        <div>
+          <div class="n">JioPhone</div>
+          <div class="s" id="s-conn">-</div>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <!-- ---- Dialer ------------------------------------------------------ -->
+      <section id="view-dialer" class="view active">
+        <div id="dial-pad" class="glass">
+          <div class="dial-readout">
+            <input id="d-number" type="tel" placeholder="+91 98765 43210" autocomplete="off" aria-label="Number to dial">
+            <button id="d-back" title="Delete" aria-label="Delete"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 5H9.6a2 2 0 0 0-1.5.7l-5 6a2 2 0 0 0 0 2.6l5 6a2 2 0 0 0 1.5.7H20a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><path d="m17.5 9.5-5 5M12.5 9.5l5 5"/></svg></button>
+          </div>
+
+          <div class="keypad">
+            <button data-sub="&#160;">1</button>
+            <button data-sub="ABC">2</button>
+            <button data-sub="DEF">3</button>
+            <button data-sub="GHI">4</button>
+            <button data-sub="JKL">5</button>
+            <button data-sub="MNO">6</button>
+            <button data-sub="PQRS">7</button>
+            <button data-sub="TUV">8</button>
+            <button data-sub="WXYZ">9</button>
+            <button data-sub="&#160;">*</button>
+            <button data-sub="+">0</button>
+            <button data-sub="&#160;">#</button>
+          </div>
+
+          <div class="dial-actions">
+            <button id="d-clear" title="Clear the number">Clear</button>
+            <button id="d-call" class="primary">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="none" style="vertical-align:-4px;margin-right:10px"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.6a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.5 2.6.7a2 2 0 0 1 1.7 2z"/></svg>Call via JioPhone
+            </button>
+          </div>
+
+          <div id="call-panel" hidden>
+            <div class="call-name" id="c-name">-</div>
+            <div class="call-number" id="c-number">-</div>
+            <div class="call-state" id="c-state">-</div>
+            <div class="call-rec" id="c-rec" hidden><span class="dot bad"></span>REC</div>
+            <div class="call-timer" id="c-timer">00:00</div>
+            <div class="dial-actions">
+              <button id="c-answer" hidden>Answer</button>
+              <button id="c-mute" hidden aria-pressed="false" aria-label="Mute microphone" title="Mute microphone"></button>
+              <button id="c-hangup">Hang up</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contacts folded in from the old Contacts view, as the canvas's
+             right-hand dialer panel. -->
+        <div id="contacts-panel" class="glass">
+          <!-- Filled by loadSpeedDial(); stays hidden until there is at least
+               one outgoing call to draw from. -->
+          <div id="speed-dial" hidden aria-label="Speed dial"></div>
+
+          <input id="ct-search" placeholder="Search contacts" autocomplete="off" aria-label="Search contacts">
+
+          <div id="contacts-scroll">
+            <table id="contacts-table">
+              <thead><tr><th>Name</th><th>Number</th><th></th></tr></thead>
+              <tbody id="contacts-body"></tbody>
+            </table>
+            <div id="contacts-empty" class="empty" hidden>
+              <p><strong>No contacts yet.</strong></p>
+              <p class="muted">
+                The handset does not allow the PC to pull its phonebook, so contacts are
+                sent from the phone instead. Use Settings &rarr; Contacts &rarr; Import from handset.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- Call logs --------------------------------------------------- -->
+      <section id="view-calls" class="view">
+        <div id="calls-panel" class="glass">
+          <div class="calls-head">
+            <h1>Call logs</h1>
+          </div>
+
+          <div class="filters">
+            <label>From <input type="date" id="f-from"></label>
+            <label>To <input type="date" id="f-to"></label>
+            <button id="f-apply">Apply</button>
+            <button id="f-clear">Clear</button>
+            <span class="spacer"></span>
+            <!-- One Export control, as the canvas draws it. The four actions keep
+                 their ids, so wireExport() in app.js is untouched by the move. -->
+            <div id="export">
+              <button id="x-menu" aria-haspopup="menu" aria-expanded="false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                Export
+                <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div id="x-panel" role="menu" hidden>
+                <button id="x-calls" role="menuitem">Calls CSV</button>
+                <button id="x-report" role="menuitem">Report PDF</button>
+                <button id="x-contacts" role="menuitem">Contacts CSV</button>
+                <button id="x-vcf" role="menuitem">Contacts vCard</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="cards" id="call-stats"></div>
+
+          <div id="calls-scroll">
+            <table id="calls-table">
+              <thead>
+                <tr><th>Direction</th><th>Contact</th><th>Number</th><th>When</th><th>Duration</th><th>Recording</th></tr>
+              </thead>
+              <tbody id="calls-body"></tbody>
+            </table>
+            <div id="calls-empty" class="empty" hidden>
+              <p><strong id="calls-empty-title">No calls recorded yet.</strong></p>
+              <p class="muted" id="calls-empty-body">
+                History starts when Konnect first runs. Calls made or received while
+                Konnect is closed cannot be recovered - the handset does not share its
+                own call history over Bluetooth.
+              </p>
+            </div>
+          </div>
+          <p id="calls-truncated" class="muted" hidden></p>
+        </div>
+      </section>
+
+      <!-- ---- Settings ---------------------------------------------------- -->
+      <section id="view-settings" class="view">
+        <div id="device-card" class="glass">
+          <img src="../../assets/jiophone-colored.svg" alt="JioPhone">
+          <p id="set-device">-</p>
+          <!-- Battery, operator and model live in the title-bar pill and
+               connection in the sidebar chip; renderStatus() writes each id
+               once, so this card carries the one reading left over. -->
+          <div class="device-stats">
+            <div class="card"><span class="k">Signal</span><span class="v" id="s-sig">-</span></div>
+          </div>
+          <div class="dial-actions">
+            <button id="set-change-device">Change handset</button>
+            <button id="set-forget-device" class="danger">Forget this handset</button>
+          </div>
+        </div>
+
+        <div id="settings-panel" class="glass">
+          <h1>Settings</h1>
+
+          <fieldset><legend>Audio devices</legend><div id="set-audio"></div></fieldset>
+          <fieldset><legend>Call volume</legend><div id="set-volume"></div></fieldset>
+          <fieldset><legend>Ringtone</legend><div id="set-ring"></div></fieldset>
+
+          <fieldset>
+            <legend>Recording</legend>
+            <label>
+              <input type="checkbox" id="s-record">
+              <span class="grow">Record calls
+                <span class="sub">Saved to ~/Konnect/recordings and linked to the call log.
+                Remote audio on the left channel, your microphone on the right.</span>
+              </span>
+            </label>
+          </fieldset>
+
+          <fieldset><legend>Google account</legend><div id="set-google"></div></fieldset>
+
+          <fieldset><legend>Appearance</legend><div id="set-theme"></div></fieldset>
+
+          <fieldset><legend>Startup</legend><div id="set-startup"></div></fieldset>
+
+          <!-- Contacts import and the system checks are wired by id in app.js,
+               so living here rather than in their old views changes nothing. -->
+          <fieldset>
+            <legend>Contacts</legend>
+            <div class="row">
+              <span class="grow">Import from handset
+                <span class="sub">The handset will not let the PC pull its phonebook, so
+                the phone has to send it over Bluetooth.</span>
+              </span>
+              <button id="ct-import">Import</button>
+              <button id="ct-cancel" hidden>Cancel</button>
+            </div>
+            <ol id="ct-steps" hidden>
+              <li>On the JioPhone open <strong>Contacts</strong></li>
+              <li>Choose <strong>Options &rarr; Share / Send via Bluetooth</strong></li>
+              <li>Select <strong>this PC</strong> as the destination</li>
+            </ol>
+            <p id="ct-result" class="muted"></p>
+          </fieldset>
+
+          <fieldset>
+            <legend>System checks</legend>
+            <div class="row">
+              <span class="grow">Bluetooth, telephony and audio prerequisites</span>
+              <button id="run-checks">Run checks</button>
+            </div>
+            <ul id="checks"></ul>
+          </fieldset>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="wizard" class="modal" hidden>
+    <div class="onboard-card">
+      <div class="onboard-art">
+        <!-- Radar rings behind the handset while a scan has found nothing yet
+             (artboard 1b). Static markup, like #blobs: the renderer only ever
+             writes into #wizard-box, and CSS shows these off #wizard's
+             data-scan. -->
+        <span class="scan-rings" aria-hidden="true"><i></i><i></i><i></i></span>
+        <img src="../../assets/jiophone-colored.svg" alt="JioPhone">
+      </div>
+      <div class="onboard-body" id="wizard-box"></div>
+    </div>
+  </div>
+
+  <!-- rank.js and onboarding-state.js are shared CommonJS modules with a
+       window fallback: the renderer has no require(), so they must load
+       before onboarding.js reads window.Rank / window.Onboarding. -->
+  <script src="../shared/rank.js"></script>
+  <script src="../shared/speeddial.js"></script>
+  <script src="../shared/onboarding-state.js"></script>
+  <script src="../shared/peaks.js"></script>
+  <script src="app.js"></script>
+  <script src="settings.js"></script>
+  <script src="onboarding.js"></script>
+</body>
+</html>

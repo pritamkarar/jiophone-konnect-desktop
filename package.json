@@ -1,0 +1,46 @@
+{
+  "name": "konnect",
+  "version": "0.1.0",
+  "description": "PC suite for JioPhone (KaiOS) over Bluetooth",
+  "author": "Pritam Karar <pritamkarar2@gmail.com>",
+  "repository": "https://github.com/pritamkarar/jiophone-konnect.git",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "dbus-next": "^0.10.2"
+  },
+  "build": {
+    "appId": "pcsuite.jiophone.konnect",
+    "protocols": [
+      {
+        "name": "Phone call",
+        "schemes": [
+          "tel"
+        ]
+      }
+    ],
+    "productName": "Konnect",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Utility",
+      "syncDesktopName": true
+    }
+  },
+  "desktopName": "konnect.desktop"
+}

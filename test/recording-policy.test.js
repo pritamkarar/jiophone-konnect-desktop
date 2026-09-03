@@ -1,0 +1,41 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const { createRecordHandler } = require('../src/main/recording-policy');
+
+function harness(initial) {
+  const calls = { started: [], stopped: [], attached: [] };
+  let setting = initial;
+  const handler = createRecordHandler({
+    store: { getSetting: () => setting },
+    backend: {
+      startRecording: async (id) => { calls.started.push(id); },
+      stopRecording: async (id) => { calls.stopped.push(id); return `/tmp/${id}.opus`; },
+    },
+    attachRecording: (id, p) => calls.attached.push([id, p]),
+  });
+  return { handler, calls, set: (v) => { setting = v; } };
+}
+
+test('a recording started before the toggle was switched off is still stopped', async () => {
+  const h = harness('true');
+  await h.handler({ phase: 'start', call: { id: 'c1' } });
+  h.set('false');                              // user switches recording off mid-call
+  await h.handler({ phase: 'stop', call: { id: 'c1' } });
+  assert.deepStrictEqual(h.calls.stopped, ['c1'], 'recorder left running after toggle off');
+  assert.deepStrictEqual(h.calls.attached, [['c1', '/tmp/c1.opus']]);
+});
+
+test('the toggle still prevents a recording from starting', async () => {
+  const h = harness('false');
+  await h.handler({ phase: 'start', call: { id: 'c2' } });
+  assert.deepStrictEqual(h.calls.started, []);
+});
+
+test('a backend failure is logged, not thrown into the call event handler', async () => {
+  const handler = createRecordHandler({
+    store: { getSetting: () => 'true' },
+    backend: { startRecording: async () => { throw new Error('pw-record missing'); } },
+    attachRecording: () => {},
+  });
+  await assert.doesNotReject(() => handler({ phase: 'start', call: { id: 'c3' } }));
+});

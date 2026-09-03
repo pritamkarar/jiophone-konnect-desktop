@@ -1,0 +1,1069 @@
+/* Design tokens come verbatim from "JioPhone Konnect.dc.html" so the canvas
+   and the app stay diff-able. Dark is the default; light follows the OS -
+   the canvas exposed the theme as a Tweaks knob, which is a design-tool
+   control, not a product feature. */
+:root {
+  color-scheme: dark;
+  --wbg: #070B1A;
+  --fg: #EEF2FF;
+  --fg2: rgba(238, 242, 255, .62);
+  --fg3: rgba(238, 242, 255, .36);
+  --glass: rgba(255, 255, 255, .06);
+  --glass2: rgba(255, 255, 255, .11);
+  --gb: rgba(255, 255, 255, .12);
+  --gsh: 0 24px 70px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .1);
+  --acc: #3D7BFF;
+  --acc2: #0A2885;
+  --ok: #34D399;
+  --bad: #F87171;
+  --blob1: rgba(61, 123, 255, .55);
+  --blob2: rgba(10, 40, 133, .85);
+  --blob3: rgba(130, 90, 255, .35);
+  --key: rgba(255, 255, 255, .05);
+  --keyb: rgba(255, 255, 255, .08);
+  --line: rgba(255, 255, 255, .08);
+  --sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --wbg: #E8EDFA;
+    --fg: #0B1230;
+    --fg2: rgba(11, 18, 48, .64);
+    --fg3: rgba(11, 18, 48, .4);
+    --glass: rgba(255, 255, 255, .5);
+    --glass2: rgba(255, 255, 255, .78);
+    --gb: rgba(255, 255, 255, .9);
+    --gsh: 0 24px 70px rgba(10, 40, 133, .14), inset 0 1px 0 #fff;
+    --acc: #1F5BFF;
+    --ok: #0FA36B;
+    --bad: #E0443E;
+    --blob1: rgba(61, 123, 255, .45);
+    --blob2: rgba(10, 40, 133, .28);
+    --blob3: rgba(160, 120, 255, .35);
+    --key: rgba(255, 255, 255, .55);
+    --keyb: rgba(255, 255, 255, .9);
+    --line: rgba(11, 18, 48, .08);
+  }
+}
+
+* { box-sizing: border-box; }
+/* Every image here is decoration - the handset in the sidebar chip, on the
+   Settings device card and in the wizard, plus the title-bar mark. Left at
+   Chromium's default, each one can be torn off as a drag ghost by the mouse;
+   none of them is content anyone would want to drag anywhere. Nothing binds a
+   listener to an img, so making them pointer-transparent as well costs no
+   behaviour and hands clicks to the chip and card underneath. */
+img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--wbg);
+  color: var(--fg);
+  font: 400 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The three blurred blobs the canvas paints behind the glass. Purely
+   decorative, so they must never eat a click meant for the panels above. */
+#blobs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+#blobs i { position: absolute; border-radius: 50%; display: block; }
+#blobs i:nth-child(1) { width: 560px; height: 560px; background: var(--blob2); filter: blur(90px); left: -120px; top: -160px; }
+#blobs i:nth-child(2) { width: 520px; height: 520px; background: var(--blob1); filter: blur(100px); right: -140px; bottom: -200px; }
+#blobs i:nth-child(3) { width: 320px; height: 320px; background: var(--blob3); filter: blur(90px); left: 45%; top: 55%; }
+
+.glass {
+  border-radius: 20px;
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow: var(--gsh);
+}
+
+/* ---- title bar ---------------------------------------------------------- */
+#titlebar {
+  position: relative;
+  /* Above .modal (z-index 20). The onboarding overlay is `inset: 0`, so
+     without this it covers the window controls: they render behind its dim
+     layer and every click on them lands on the backdrop instead. A blocking
+     onboarding then has no minimise, maximise or close at all. The artboards
+     draw the title bar above the card for the same reason. */
+  z-index: 30;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 22px;
+  font: 600 13px var(--sans);
+  color: var(--fg2);
+  -webkit-app-region: drag;
+}
+#titlebar .brand { display: flex; align-items: center; gap: 10px; }
+/* assets/logo.svg carries its own gradient tile, so this only sizes it. */
+#titlebar .mark { width: 22px; height: 22px; border-radius: 7px; flex: none; }
+
+/* Folded in from the old Status view: the canvas puts live handset state in
+   the title bar rather than on a page of its own. */
+#status-pill {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 999px;
+  background: var(--glass2); border: 1px solid var(--gb);
+  font: 500 12px var(--sans); color: var(--fg2);
+  max-width: 46%;
+}
+#status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg3); flex: none; }
+#status-pill .dot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+#status-pill .dot.bad { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+#status-pill #s-model { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#status-pill .meta { color: var(--fg3); white-space: nowrap; }
+
+#wincontrols { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+#wincontrols button {
+  width: 28px; height: 26px; border: 0; border-radius: 7px;
+  background: none; color: var(--fg3); font: 400 13px var(--sans);
+  cursor: pointer; display: grid; place-items: center;
+}
+#wincontrols button:hover { background: var(--glass2); color: var(--fg); }
+#wincontrols button#win-close:hover { background: var(--bad); color: #fff; }
+
+/* ---- shell -------------------------------------------------------------- */
+#shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 16px;
+  padding: 6px 20px 20px;
+}
+
+#nav { padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+#nav button {
+  height: 42px; flex: none;
+  display: flex; align-items: center; gap: 12px; padding: 0 14px;
+  border: 1px solid transparent; border-radius: 12px; background: none;
+  color: var(--fg2); font: 500 13.5px var(--sans); text-align: left;
+  cursor: pointer;
+}
+#nav button svg { flex: none; }
+#nav button:hover { background: var(--glass2); color: var(--fg); }
+#nav button.active {
+  background: var(--glass2); border-color: var(--gb);
+  color: var(--fg); font-weight: 600;
+}
+#nav button.active svg { color: var(--acc); }
+
+.device-chip {
+  margin-top: auto; padding: 14px; border-radius: 14px;
+  background: var(--glass2); border: 1px solid var(--gb);
+  display: flex; gap: 12px; align-items: center;
+}
+.device-chip img { height: 44px; flex: none; }
+.device-chip .n { font: 600 12.5px var(--sans); }
+.device-chip .s { font: 400 11px var(--sans); color: var(--ok); }
+
+main { min-height: 0; display: grid; }
+.view { display: none; min-height: 0; }
+.view.active { display: grid; min-height: 0; }
+/* Grid and flex items default to min-width:auto and so refuse to shrink below
+   their content's min-content width. Every panel is a grid item, so without
+   this a single wide child (see the select rule below) pushes the panel past
+   its column instead of the child being constrained. */
+.view.active > * { min-width: 0; }
+
+/* ---- shared atoms ------------------------------------------------------- */
+h1 { font: 700 22px var(--sans); letter-spacing: -.02em; margin: 0; }
+h2 { font: 700 26px/1.2 var(--sans); letter-spacing: -.02em; margin: 0; }
+.muted { color: var(--fg3); font-size: 12px; }
+.section-label {
+  font: 600 10.5px var(--sans); color: var(--fg3);
+  text-transform: uppercase; letter-spacing: .1em; padding: 0 4px 4px;
+}
+
+button, input, select { font: inherit; color: inherit; }
+
+button.primary {
+  height: 40px; padding: 0 20px; border: 0; border-radius: 12px;
+  background: linear-gradient(135deg, var(--acc), var(--acc2)); color: #fff;
+  font: 600 13px var(--sans); cursor: pointer;
+  box-shadow: 0 8px 24px rgba(31, 91, 255, .3);
+}
+button.primary:disabled { opacity: .45; box-shadow: none; cursor: default; }
+
+button.link {
+  border: 0; background: none; color: var(--acc);
+  font: 600 12px var(--sans); cursor: pointer; padding: 2px 6px;
+}
+button.link:hover { text-decoration: underline; }
+
+.banner {
+  padding: 10px 14px; border-radius: 12px; margin-bottom: 12px;
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  border: 1px solid var(--bad); color: var(--fg);
+  font: 500 12.5px var(--sans);
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--fg3); }
+.dot.ok { background: var(--ok); }
+.dot.bad { background: var(--bad); }
+.dot.acc { background: var(--acc); }
+
+/* Generic pill button used by settings rows, wizard nav, dialer actions. */
+.dial-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.dial-actions button,
+button.pill {
+  height: 40px; padding: 0 16px; border-radius: 12px;
+  border: 1px solid var(--gb); background: var(--glass2);
+  color: var(--fg2); font: 600 13px var(--sans); cursor: pointer;
+}
+.dial-actions button:hover:not(:disabled),
+button.pill:hover:not(:disabled) { color: var(--fg); }
+.dial-actions button:disabled { opacity: .45; cursor: default; }
+.dial-actions button.primary,
+#wizard-box button.primary {
+  border: 0; color: #fff;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  box-shadow: 0 8px 24px rgba(31, 91, 255, .3);
+}
+
+/* ---- dialer ------------------------------------------------------------- */
+#view-dialer.active { grid-template-columns: 1fr 320px; gap: 16px; }
+
+#dial-pad {
+  position: relative;
+  padding: 28px clamp(16px, 3vw, 40px) 26px;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  min-height: 0; overflow: hidden;
+}
+
+.dial-readout {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding-bottom: 22px; border-bottom: 1px solid var(--line);
+}
+/* Balances #d-back on the other side, so the number stays centred in the pad
+   instead of being shoved left by the button sitting next to it. A spacer in
+   CSS rather than an empty element in the markup: it is pure layout and has
+   nothing for a screen reader to read. */
+.dial-readout::before { content: ''; width: 40px; flex: none; }
+#d-number {
+  flex: 1; min-width: 0; text-align: center;
+  background: none; border: 0; outline: none;
+  /* The canvas specifies 36px at a 1100px window, but devicePixelRatio 1.09
+     makes that window 1004 CSS px, and the delete button now beside the field
+     spends 90px of the pad's 340px inner width. Measured at that width: a
+     15-character number needs 0.67 x the font size per character, so this
+     clamp is what keeps one from clipping rather than a guess at a nice size.
+     Re-measure before changing it. */
+  font: 500 clamp(17px, 2.3vw, 30px)/1 var(--mono);
+  letter-spacing: .02em; color: var(--fg);
+}
+#d-number::placeholder { color: var(--fg3); }
+
+/* minmax(0,88px) rather than a flat 88px: the keys stay 88px at the design
+   width but can shrink instead of overflowing the pad near minWidth. */
+.keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 88px)); gap: 10px; width: 100%; max-width: 284px; }
+.keypad button {
+  height: 62px; border-radius: 18px;
+  background: var(--key); border: 1px solid var(--keyb); color: var(--fg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font: 500 24px var(--sans); cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.keypad button:hover { border-color: var(--acc); }
+.keypad button:active { transform: translateY(1px); }
+/* The letter row is a pseudo-element on purpose: app.js dials and sends DTMF
+   from key.textContent, and a real child element would make that "2ABC". */
+.keypad button[data-sub]::after {
+  content: attr(data-sub);
+  font: 600 9px var(--sans); letter-spacing: .14em; color: var(--fg3);
+  margin-top: 2px;
+}
+
+#dial-pad .dial-actions { align-items: center; gap: 18px; }
+#d-call {
+  height: 64px; padding: 0 44px; border-radius: 32px; border: 0;
+  background: linear-gradient(135deg, #34D399, #0FA36B); color: #fff;
+  font: 700 15px var(--sans); cursor: pointer;
+  box-shadow: 0 14px 36px rgba(15, 163, 107, .4);
+}
+#d-call:disabled { opacity: .45; box-shadow: none; cursor: default; }
+/* Lives beside the number field now, not in the action row, so it carries its
+   own box rather than inheriting .dial-actions button. */
+#d-back {
+  width: 40px; height: 40px; flex: none; padding: 0; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--glass2); border: 1px solid var(--gb); color: var(--fg2);
+  cursor: pointer;
+}
+#d-back:hover { color: var(--fg); }
+
+/* In-call state covers the pad rather than pushing it off a 700px-tall window. */
+#call-panel {
+  position: absolute; inset: 0; z-index: 2;
+  border-radius: 20px;
+  /* Opaque on purpose. #dial-pad has backdrop-filter, which makes it a
+     backdrop root, so a nested backdrop-filter here samples that root and
+     never the keypad painted inside it - the pad showed straight through a
+     glass fill. */
+  background: linear-gradient(150deg, color-mix(in srgb, var(--acc2) 55%, var(--wbg)), var(--wbg) 70%);
+  box-shadow: var(--gsh);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 32px;
+}
+#call-panel[hidden] { display: none; }
+/* Icon-only: a 46px circle beside Hang up rather than a text pill. */
+#c-mute {
+  width: 46px; height: 46px; padding: 0; border-radius: 50%;
+  background: var(--glass2); border: 1px solid var(--gb); color: var(--fg2);
+  display: grid; place-items: center; cursor: pointer;
+}
+#c-mute:hover:not(:disabled) { color: var(--fg); }
+#c-mute:disabled { opacity: .45; cursor: default; }
+/* Muted is a state the user must be able to read at a glance mid-call, so the
+   button tints rather than only swapping its glyph. */
+#c-mute.is-muted {
+  color: var(--acc);
+  border-color: color-mix(in srgb, var(--acc) 55%, transparent);
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
+}
+.call-name { font: 700 28px var(--sans); letter-spacing: -.01em; }
+.call-number { font: 400 14px var(--mono); color: var(--fg2); }
+.call-state {
+  font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: .12em;
+  color: var(--fg3); margin-top: 4px;
+}
+.call-timer { font: 500 44px/1 var(--mono); margin: 10px 0 18px; }
+.call-rec {
+  display: flex; align-items: center; gap: 6px;
+  font: 600 11px var(--sans); letter-spacing: .1em; color: var(--bad);
+}
+#c-answer {
+  height: 46px; padding: 0 28px; border-radius: 14px; border: 0;
+  background: linear-gradient(135deg, #34D399, #0FA36B); color: #fff;
+  font: 600 14px var(--sans); cursor: pointer;
+}
+#c-hangup {
+  height: 46px; padding: 0 28px; border-radius: 14px; border: 0;
+  background: var(--bad); color: #fff; font: 600 14px var(--sans); cursor: pointer;
+  box-shadow: 0 10px 26px rgba(224, 68, 62, .35);
+}
+
+/* ---- contacts side panel (folded in from the old Contacts view) --------- */
+#contacts-panel { padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+#ct-search {
+  height: 40px; border-radius: 12px; padding: 0 14px; flex: none;
+  background: var(--glass2); border: 1px solid var(--gb); outline: none;
+  font: 400 13px var(--sans); color: var(--fg);
+}
+#ct-search::placeholder { color: var(--fg3); }
+
+/* Speed dial: four fixed columns, so a long name ellipsises rather than
+   reflowing the strip. The [hidden] reset is required - an id selector with
+   `display` beats the UA stylesheet's [hidden] rule, the same trap
+   #call-panel and .modal already work around below. */
+#speed-dial { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: none; }
+#speed-dial[hidden] { display: none; }
+#speed-dial .sd {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  min-width: 0; padding: 10px 6px; border-radius: 12px; cursor: pointer;
+  background: var(--glass2); border: 1px solid var(--gb); color: var(--fg2);
+}
+#speed-dial .sd:hover { color: var(--fg); border-color: var(--acc); }
+.sd-avatar {
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  color: #fff; font: 700 13px var(--sans);
+}
+.sd-label {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 600 11px var(--sans);
+}
+#contacts-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+
+#contacts-table { width: 100%; border-collapse: collapse; }
+#contacts-table thead { display: none; }
+#contacts-table tr {
+  display: grid; grid-template-columns: 1fr auto; align-items: center;
+  gap: 2px 12px; padding: 9px 12px; border-radius: 12px;
+}
+#contacts-table tr:hover { background: var(--glass2); }
+#contacts-table td { padding: 0; border: 0; }
+#contacts-table td:nth-child(1) { font: 600 13px var(--sans); }
+#contacts-table td:nth-child(2) { grid-column: 1; font: 400 11.5px var(--mono); color: var(--fg3); }
+#contacts-table td:nth-child(3) { grid-row: 1 / 3; grid-column: 2; }
+#contacts-table td:nth-child(3) button {
+  width: 30px; height: 30px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--glass2); border: 1px solid var(--gb); color: var(--fg2);
+  cursor: pointer;
+}
+#contacts-table td:nth-child(3) button:hover { background: var(--acc); border-color: var(--acc); color: #fff; }
+
+#ct-steps {
+  margin: 0; padding: 10px 12px 10px 28px; border-radius: 12px;
+  background: var(--glass2); border: 1px solid var(--gb);
+  font: 400 11.5px/1.7 var(--sans); color: var(--fg2);
+}
+.empty { padding: 20px 4px; }
+.empty p { margin: 0 0 6px; }
+
+/* ---- call log ----------------------------------------------------------- */
+#view-calls.active { grid-template-rows: 1fr; }
+#calls-panel { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.calls-head { display: flex; align-items: center; gap: 12px; flex: none; }
+.calls-head h1 { margin-right: auto; }
+
+.filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: none; }
+.filters label {
+  display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+  border-radius: 999px; border: 1px solid var(--gb); background: var(--glass2);
+  font: 500 12px var(--sans); color: var(--fg2);
+}
+.filters input[type="date"] {
+  background: none; border: 0; outline: none; color: var(--fg);
+  font: 500 12px var(--mono); color-scheme: inherit;
+}
+.filters button {
+  height: 30px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--gb); background: var(--glass2); color: var(--fg2);
+  font: 500 12px var(--sans); cursor: pointer;
+}
+.filters button:hover { color: var(--fg); }
+.filters .spacer { margin-left: auto; }
+/* One "Export" menu, as the canvas draws it. A single control can carry the
+   filled accent treatment without shouting over the log the way four filled
+   buttons in a row would. */
+#export { position: relative; }
+#x-menu {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 30px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  border: 0; color: #fff; font: 600 12px var(--sans);
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--acc) 32%, transparent);
+}
+#x-menu .chev { transition: transform .15s ease; }
+#x-menu[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+#x-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 20;
+  display: flex; flex-direction: column; min-width: 176px; padding: 6px;
+  border-radius: 14px; border: 1px solid var(--gb); box-shadow: var(--gsh);
+  /* Opaque, NOT glass: #calls-panel already carries backdrop-filter, so a
+     nested one here would sample that panel as its backdrop root and show
+     the table straight through - the same trap #call-panel documents above. */
+  background: color-mix(in srgb, var(--wbg) 90%, var(--acc2));
+}
+/* An id selector with `display` outranks the UA stylesheet's [hidden] rule. */
+#x-panel[hidden] { display: none; }
+#x-panel button {
+  height: 32px; padding: 0 10px; border-radius: 9px; text-align: left;
+  border: 0; background: none; color: var(--fg2);
+  font: 500 12.5px var(--sans); cursor: pointer;
+}
+#x-panel button:hover { background: var(--glass2); color: var(--fg); }
+
+/* Round icon-only button. Shared by the call log's recording column and the
+   ringtone preview, so it is named for its shape, not for either caller. */
+.iconbtn {
+  width: 26px; height: 26px; padding: 0; border-radius: 50%;
+  display: inline-grid; place-items: center; vertical-align: middle;
+  background: var(--glass2); border: 1px solid var(--gb); color: var(--fg2);
+  cursor: pointer;
+}
+.iconbtn + .iconbtn { margin-left: 6px; }
+.iconbtn:hover { background: var(--acc); border-color: var(--acc); color: #fff; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; flex: none; }
+.card {
+  padding: 10px 14px; border-radius: 12px;
+  background: var(--glass2); border: 1px solid var(--gb);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.card .k { font: 500 10px var(--sans); color: var(--fg3); text-transform: uppercase; letter-spacing: .08em; }
+.card .v { font: 600 15px var(--sans); }
+
+#calls-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+#calls-table { width: 100%; border-collapse: collapse; }
+#calls-table thead th {
+  position: sticky; top: 0; z-index: 1; text-align: left;
+  padding: 6px 14px;
+  /* Sticky, so it needs to hide rows scrolling under it - but it sits on a
+     glass panel, so a flat --wbg fill reads as an opaque bar. */
+  background: color-mix(in srgb, var(--wbg) 88%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  font: 600 10.5px var(--sans); color: var(--fg3);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+#calls-table tbody tr { border-radius: 12px; }
+#calls-table tbody tr:hover { background: var(--glass2); }
+#calls-table td { padding: 11px 14px; border-top: 1px solid var(--line); font: 400 12.5px var(--sans); }
+#calls-table td:nth-child(2) { font-weight: 600; font-size: 13.5px; }
+#calls-table td:nth-child(3) { font: 400 11.5px var(--mono); color: var(--fg3); }
+#calls-table td:nth-child(5) { font: 500 12.5px var(--mono); }
+
+/* renderCalls() already tags the direction cell, so the canvas's arrow
+   glyphs need no change to the JS. */
+.dir-in, .dir-out, .dir-missed { font-weight: 500; }
+.dir-in::before, .dir-out::before, .dir-missed::before { margin-right: 7px; font-weight: 700; }
+.dir-in { color: var(--acc); } .dir-in::before { content: "\2199"; }
+.dir-out { color: var(--ok); } .dir-out::before { content: "\2197"; }
+.dir-missed { color: var(--bad); } .dir-missed::before { content: "\2199"; }
+
+/* ---- recording player (design canvas artboard 2b) ------------------------
+   Replaces the native <audio controls>, which had to fit a 220px cell and
+   rendered as a grey Chromium slab in the middle of a glass table. Every
+   value here is a token already defined at the top of this file - the canvas
+   and the app share a palette, so nothing new is introduced. */
+
+/* The Recording column's Play / Stop pill. `button.pill` near the top of this
+   file already owns the box - height, padding, radius, colours - and outranks
+   a bare `.pill` on specificity, so only the icon-and-label layout and the
+   active state belong here. */
+.pill { display: inline-flex; align-items: center; gap: 6px; }
+.pill.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+
+/* The strip spans the table, so its row carries no cell borders of its own. */
+.player-row > td { padding: 0 12px 12px; }
+
+.player {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 12px; border-radius: 12px;
+  background: var(--glass); border: 1px solid var(--line);
+}
+
+/* Inverted against the strip: the one control that is always reachable. */
+.player-toggle {
+  width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--fg); color: var(--wbg);
+}
+
+.player-time { font: 500 11.5px var(--mono); color: var(--fg2); flex: none; }
+.player-time.total { color: var(--fg3); }
+
+/* The waveform is also the scrub bar, so the whole strip is the hit target -
+   not the individual bars, which are 3px wide and unhittable. */
+.wave {
+  flex: 1; height: 32px; min-width: 0;
+  display: flex; align-items: center; gap: 3px; cursor: pointer;
+}
+.wave i { flex: 1; border-radius: 2px; background: var(--fg3); }
+.wave i.played { background: var(--acc); }
+
+/* Square variant of the round .iconbtn, for sitting inside the strip. */
+.iconbtn.sq { width: 30px; height: 30px; border-radius: 9px; flex: none; }
+
+/* ---- settings ----------------------------------------------------------- */
+#view-settings.active { grid-template-columns: 270px 1fr; gap: 16px; }
+
+#device-card {
+  padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+  min-height: 0; overflow-y: auto;
+}
+#device-card img { height: 210px; flex: none; filter: drop-shadow(0 24px 30px rgba(0, 0, 0, .4)); }
+#device-card .name { font: 700 17px var(--sans); text-align: center; }
+#set-device { font: 400 11.5px var(--mono); color: var(--fg3); margin: 0; text-align: center; }
+.device-stats { width: 100%; display: grid; grid-template-columns: 1fr; gap: 8px; }
+.device-stats .card .v { font-size: 14px; }
+#device-card .dial-actions { width: 100%; margin-top: auto; flex-direction: column; }
+#device-card .dial-actions button { width: 100%; }
+
+#settings-panel { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; }
+
+/* min-width:0 is load-bearing: the UA stylesheet gives <fieldset> a
+   min-width of min-content, uniquely among elements, so it refuses to shrink
+   below its widest row and pushed the settings panel past its grid column on
+   any display where the window is narrower than the canvas's 1100 CSS px. */
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+legend {
+  flex: 0 0 100%; padding: 0 4px 4px;
+  font: 600 10.5px var(--sans); color: var(--fg3);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+
+/* settings.js appends a FLAT list into each section host: <div> groups,
+   <label> rows, <p class="muted"> notes and bare <button>s. The slab styling
+   below is therefore applied per element type, never to a host's every
+   child - an earlier blanket rule flexed the volume GROUP and stacked its
+   "On the call" heading one word per line. */
+#set-audio, #set-volume, #set-ring, #set-startup, #set-google {
+  display: flex; flex-direction: column; gap: 8px;
+}
+#set-volume > div { display: flex; flex-direction: column; gap: 8px; }
+/* One glass slab per settings row, matching the canvas. */
+.row,
+#set-audio > label, .radio-row,
+#set-ring > label, #set-ring > p,
+#set-startup > label,
+#set-google > label,
+#set-volume label,
+#settings-panel > fieldset > label {
+  display: flex; align-items: center; gap: 10px; margin: 0; min-width: 0;
+  padding: 10px 14px; border-radius: 12px;
+  background: var(--glass2); border: 1px solid var(--gb);
+  font: 600 13px var(--sans);
+}
+/* The audio-mode radios are two labels sharing one slab, so they must not
+   each become a slab of their own. */
+.radio-row { gap: 8px 20px; flex-wrap: wrap; }
+.radio-row label {
+  padding: 0; margin: 0; background: none; border: 0; border-radius: 0;
+  display: flex; align-items: center; gap: 6px; font-weight: 500;
+}
+
+/* Audio devices: one card per device, as the canvas's Audio artboard draws
+   them - icon, purpose, picker and level in one box. The level slider used to
+   be a separate "On this PC" group under Volume that could only say "choose a
+   device above"; here the picker and the level it controls sit together. */
+.devcards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.devcard {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  padding: 12px 14px; border-radius: 12px;
+  background: var(--glass2); border: 1px solid var(--gb);
+}
+.devcard-head { display: flex; align-items: center; gap: 8px; font: 600 13px var(--sans); }
+.devcard-icon { display: grid; place-items: center; color: var(--acc); }
+.devcard-sub { margin: 0; font: 400 11px/1.5 var(--sans); color: var(--fg3); }
+/* The panel-wide rule pins selects right at 60% width for the label rows;
+   inside a card the select owns the full line. #settings-panel is in the
+   selector only to outrank that id-carrying rule - a bare .devcard select
+   loses to it and the picker came out squeezed to "System ...". */
+#settings-panel .devcard select { width: 100%; max-width: 100%; margin-left: 0; }
+/* .vol-row picks up its slab from the "#set-volume label" rule above, which
+   does not reach inside a card - so the flex row is set out here instead. */
+.devcard .vol-row {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0; padding: 0; background: none; border: 0;
+}
+.devcard .vol-row > span:first-child {
+  min-width: 0; font: 500 11px var(--sans); color: var(--fg3);
+}
+.devcard .vol-read { font-size: 11px; min-width: 24px; }
+
+.row .grow, .vol-row .grow { flex: 1; }
+.row .sub, .grow .sub {
+  display: block; margin-top: 2px;
+  font: 400 11.5px/1.5 var(--sans); color: var(--fg3);
+}
+
+#settings-panel p.muted, #set-audio p, #set-ring p.muted, #set-startup p {
+  margin: 0; padding: 0 4px; font: 400 11.5px/1.6 var(--sans); color: var(--fg3);
+}
+#set-ring > p { /* the tone row is a <p> but reads as a row */
+  font: 600 13px var(--sans); color: var(--fg);
+}
+#set-ring > p span:first-child { flex: 1; }
+
+#settings-panel select {
+  /* A <select>'s min-content width is its LONGEST <option>, and on real
+     hardware those are PipeWire node names like
+     alsa_output.pci-0000_00_1f.3.analog-stereo. max-width caps the maximum
+     but not that min-content contribution, so without min-width:0 the select
+     shoved the whole settings panel 73px past its grid column. */
+  min-width: 0; flex: 0 1 auto; text-overflow: ellipsis;
+  height: 32px; max-width: 60%; padding: 0 10px; border-radius: 9px; margin-left: auto;
+  background: var(--glass); border: 1px solid var(--gb); color: var(--fg);
+  font: 500 12.5px var(--sans); cursor: pointer;
+}
+#settings-panel select:disabled { opacity: .5; }
+
+/* Google's mark, on the sign-in button and beside the account it signed in. */
+.gmark { display: inline-flex; flex: none; }
+.gmark svg { display: block; }
+/* align-self, because #set-google is a column flex and its default `stretch`
+   pulls a bare button the full width of the panel. */
+#settings-panel button.gbtn {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+}
+.gaccount { display: flex; align-items: center; gap: 8px; }
+#settings-panel button:not(.primary):not(.link):not(.iconbtn) {
+  height: 32px; padding: 0 12px; border-radius: 9px; flex: none;
+  background: var(--glass); border: 1px solid var(--gb); color: var(--fg2);
+  font: 600 12px var(--sans); cursor: pointer;
+}
+#settings-panel button:not(.primary):not(.link):not(.iconbtn):hover:not(:disabled) { color: var(--fg); }
+#settings-panel button:disabled { opacity: .45; cursor: default; }
+/* Bare buttons appended straight to a host (Test routing, Test) sit on their
+   own line rather than stretching. */
+#set-audio > button, #set-ring > button { align-self: flex-start; }
+
+.vol-row { justify-content: flex-start; }
+.vol-row > span:first-child { min-width: 84px; font-weight: 500; }
+.vol-read { font: 500 11.5px var(--mono); color: var(--fg3); min-width: 34px; text-align: right; }
+
+/* accent-color alone leaves the OS widget shape, which reads as a stray GTK
+   control on the glass. Electron is Chromium-only, so the -webkit- track and
+   thumb pseudo-elements are the whole cross-browser story here. */
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  flex: 1; min-width: 0; height: 16px; background: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  /* Chromium has no filled-track pseudo-element (that is Firefox's
+     ::-moz-range-progress), so the fill is a hard gradient stop at --pct,
+     which volumeSlider() writes on every input event. */
+  /* --fg3, not a --glass token: the glass tokens are near-white in the light
+     theme, which would leave the unfilled track invisible on a light slab.
+     The toggle's off state below picks --fg3 for exactly this reason. */
+  background: linear-gradient(to right,
+    var(--acc) 0 var(--pct, 0%), var(--fg3) var(--pct, 0%) 100%);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; margin-top: -4px; border-radius: 50%;
+  background: #fff; border: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .4), 0 0 0 1px rgba(0, 0, 0, .06);
+}
+input[type="range"]:disabled { opacity: .45; cursor: default; }
+input[type="range"]:disabled::-webkit-slider-thumb { box-shadow: none; }
+input[type="range"]:focus-visible { outline: 2px solid var(--acc); outline-offset: 4px; }
+
+input[type="radio"] {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; flex: none; margin: 0; border-radius: 50%;
+  /* --fg3 for the same reason as the slider track: --gb is near-white in the
+     light theme and the ring would vanish against the slab it sits on. */
+  border: 1.5px solid var(--fg3); background: none; cursor: pointer;
+}
+/* background-IMAGE, so the unchecked fill above survives underneath it. */
+input[type="radio"]:checked {
+  border-color: var(--acc);
+  background-image: radial-gradient(circle at 50% 50%, var(--acc) 0 3.5px, transparent 4px);
+}
+input[type="radio"]:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+/* Chromium paints a <select>'s popup itself and takes its colours from the
+   OPTION, not the select: with the palette set on the select alone, the open
+   list came up as near-white --fg text on the UA's white popup - the labels
+   were invisible. Global, not scoped, so every select is fixed at once. */
+option { background: var(--wbg); color: var(--fg); }
+
+/* Toggle switches, per the canvas's Settings artboard (38x22 track, 18px
+   knob, --acc on / --fg3 off).
+
+   These are still real <input type="checkbox"> elements - restyled with
+   appearance:none, not replaced with divs - so every existing change
+   listener, every .checked read/write in settings.js, and the native
+   keyboard behaviour (Tab focuses, Space toggles) keep working untouched,
+   and assistive tech still announces them as checkboxes.
+
+   settings.js appends the input BEFORE its text label, so `order` moves the
+   switch to the end of the row and `margin-left:auto` pins it right, the way
+   the canvas draws it - without editing how those rows are built. */
+input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  position: relative; flex: none; order: 2;
+  width: 38px; height: 22px; border-radius: 11px;
+  margin: 0 0 0 auto; padding: 0; border: 0;
+  background: var(--fg3); cursor: pointer;
+  transition: background .18s ease;
+}
+input[type="checkbox"]::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+  transition: transform .18s ease;
+}
+/* 38 - 2 - 18 - 2 = 16px of travel. */
+input[type="checkbox"]:checked { background: var(--acc); }
+input[type="checkbox"]:checked::after { transform: translateX(16px); }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+input[type="checkbox"]:disabled { opacity: .5; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  input[type="checkbox"], input[type="checkbox"]::after { transition: none; }
+}
+
+/* ---- setup checks (folded in from the old Setup view) ------------------- */
+#checks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+#wizard-box ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+#checks li, #wizard-box ul li {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 12px;
+  background: var(--glass2); border: 1px solid var(--gb);
+  font: 500 12.5px var(--sans);
+}
+#checks li button { margin-left: auto; }
+
+.manual-step {
+  flex-basis: 100%; margin-top: 10px; padding: 12px; border-radius: 12px;
+  background: var(--wbg); border: 1px solid var(--line);
+}
+.manual-step p { margin: 0 0 8px; color: var(--fg3); font-size: 12px; }
+.manual-step code {
+  display: block; padding: 8px 10px; margin-bottom: 8px; border-radius: 8px;
+  background: var(--glass2); user-select: all; font: 400 11.5px/1.6 var(--mono);
+  /* The WirePlumber remedy writes a config file via heredoc, so newlines
+     must survive. */
+  white-space: pre-wrap; overflow-x: auto;
+}
+.manual-step button { margin-right: 8px; }
+#checks pre {
+  flex-basis: 100%; margin: 8px 0 0; padding: 10px 12px; border-radius: 10px;
+  background: var(--wbg); border: 1px solid var(--line);
+  font: 400 11.5px/1.6 var(--mono); white-space: pre-wrap; overflow-x: auto;
+}
+
+/* ---- onboarding wizard -------------------------------------------------- */
+.modal {
+  position: fixed; inset: 0; z-index: 20;
+  background: color-mix(in srgb, var(--wbg) 78%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  display: grid; place-items: center; padding: 40px 60px;
+}
+.modal[hidden] { display: none; }
+
+.onboard-card {
+  /* 880x520 fixed, the size every artboard 1a-1e draws. When a device list
+     outgrows it #wizard-box scrolls; the card itself never grows. */
+  width: min(880px, 100%); height: min(520px, 100%);
+  border-radius: 26px; overflow: hidden;
+  background: var(--glass); border: 1px solid var(--gb);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow: var(--gsh);
+  display: grid; grid-template-columns: 320px 1fr;
+}
+.onboard-art {
+  position: relative;
+  display: grid; place-items: center; padding: 24px;
+  border-right: 1px solid var(--line);
+}
+/* The wash is 1a's alone - 1b-1e draw the column bare. */
+#wizard[data-view="bt-off"] .onboard-art {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, 0));
+}
+.onboard-art img {
+  position: relative;                     /* above .scan-rings */
+  max-height: 400px; max-width: 100%;
+  filter: drop-shadow(0 30px 40px rgba(0, 0, 0, .45));
+}
+#wizard-box {
+  padding: 56px 64px; min-height: 0; overflow-y: auto;
+  /* `safe` matters once the list outgrows the card: plain `center` overflows
+     equally in both directions and Chromium cannot scroll back to the clipped
+     top, so the heading becomes unreachable. */
+  display: flex; flex-direction: column; justify-content: safe center; gap: 22px;
+}
+#wizard-box h2 { font-size: 30px; line-height: 1.15; }
+#wizard-box p { margin: 0; font: 400 15px/1.6 var(--sans); color: var(--fg2); max-width: 400px; }
+#wizard-box > button {
+  align-self: flex-start; height: 36px; padding: 0 16px; border-radius: 11px;
+  border: 1px solid var(--gb); background: var(--glass2); color: var(--fg2);
+  font: 600 12.5px var(--sans); cursor: pointer;
+}
+#wizard-box > button:hover:not(:disabled) { color: var(--fg); }
+#wizard-box > button:disabled { opacity: .45; cursor: default; }
+
+/* Artboard 1c. A row is a radio choice: the tick and the accent border say
+   which one Connect will act on. */
+.device-list { display: flex; flex-direction: column; gap: 8px; }
+.device-row {
+  display: flex; align-items: center; gap: 14px;
+  height: 64px; padding: 0 16px; border-radius: 16px; cursor: pointer;
+  background: var(--glass); border: 1px solid var(--line); text-align: left;
+}
+.device-row .icon {
+  width: 38px; height: 38px; border-radius: 12px; flex: none;
+  background: var(--glass2); color: var(--fg2);
+  display: grid; place-items: center;
+}
+.device-row .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.device-row .name {
+  font: 600 15px var(--sans); color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.device-row .meta { font: 400 12px var(--mono); color: var(--fg3); }
+/* Always drawn, so picking a row does not shift the text under the cursor. */
+.device-row .tick {
+  width: 22px; height: 22px; border-radius: 50%; flex: none;
+  border: 1.5px solid var(--gb); display: grid; place-items: center;
+}
+.device-row.selected {
+  background: var(--glass2); border: 1.5px solid var(--acc);
+  box-shadow: 0 8px 30px rgba(31, 91, 255, .18);
+}
+.device-row.selected .icon {
+  background: linear-gradient(135deg, var(--acc), var(--acc2)); color: #fff;
+}
+.device-row.selected .tick { background: var(--acc); border-color: var(--acc); }
+
+.device-more {
+  display: flex; align-items: center; gap: 10px;
+  height: 44px; padding: 0 16px; border: 0; background: none; cursor: pointer;
+  font: 500 13px var(--sans); color: var(--fg3); text-align: left;
+}
+.device-more:hover { color: var(--fg2); }
+
+/* ---- onboarding (1a-1e) ------------------------------------------------- */
+/* Spec 6.1: the shell is hidden only while onboarding is blocking. */
+body.onboarding-blocking #shell,
+body.onboarding-blocking #banners { display: none; }
+body.onboarding-blocking .modal { background: none; backdrop-filter: none; }
+
+/* 1a only: the handset is drawn greyed back, because nothing can reach it
+   until the radio is on. render() stamps the state name onto #wizard so a
+   view can be styled without the renderer knowing any CSS. */
+#wizard[data-view="bt-off"] .onboard-art img { filter: drop-shadow(0 30px 40px rgba(0, 0, 0, .45)) grayscale(.6); opacity: .55; }
+
+/* The 64px status tile at the top of 1a, with its badge hung off the corner.
+   The badge border is the window ground, not the glass, so it reads as a
+   cut-out rather than a ring. */
+.onboard-icon {
+  position: relative; flex: none;
+  width: 64px; height: 64px; border-radius: 20px;
+  background: var(--glass2); border: 1px solid var(--gb);
+  display: grid; place-items: center; color: var(--fg3);
+}
+.onboard-icon .badge {
+  position: absolute; right: -6px; bottom: -6px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bad); border: 3px solid var(--wbg);
+  display: grid; place-items: center;
+}
+.onboard-head { display: flex; flex-direction: column; gap: 10px; }
+
+/* 1e: the tile goes solid green and carries a tick instead of the rune. */
+.onboard-icon.ok {
+  background: var(--ok); border-color: var(--ok); color: #fff;
+  box-shadow: 0 12px 30px rgba(52, 211, 153, .35);
+}
+/* The handset sits in a green pool, and the window's third blob turns with it.
+   #blobs is a sibling of #wizard, so :has() off the open card is what reaches
+   it - no renderer state, the `hidden` attribute is already the truth. */
+#wizard[data-view="connected"] .onboard-art::before {
+  content: ''; position: absolute; width: 220px; height: 220px; border-radius: 50%;
+  /* Centred by hand: an absolutely-positioned child takes its static position
+     from the padding box, so `place-items: center` on the column does not
+     move it. */
+  left: 50%; top: 50%; margin: -110px 0 0 -110px;
+  background: radial-gradient(circle, rgba(52, 211, 153, .35), transparent 70%);
+}
+body:has(#wizard[data-view="connected"]:not([hidden])) #blobs i:nth-child(3) {
+  background: rgba(52, 211, 153, .3);
+}
+
+/* Battery / Network / Profiles, side by side under the copy. */
+.stat-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stat-tiles div {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px; border-radius: 14px;
+  background: var(--glass2); border: 1px solid var(--gb);
+}
+.stat-tiles .cap {
+  font: 500 11px var(--sans); color: var(--fg3);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.stat-tiles .val {
+  font: 600 18px var(--sans); color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#wizard-box p b { color: var(--fg); font-weight: 600; }
+
+/* 1b: a radar sweep behind the handset, three rings on a staggered loop. */
+.scan-rings { display: none; }
+#wizard[data-scan="empty"] .scan-rings { display: block; }
+.scan-rings i {
+  position: absolute; left: 50%; top: 50%; margin: -100px 0 0 -100px;
+  width: 200px; height: 200px; border-radius: 50%;
+  border: 1.5px solid var(--acc); opacity: .5;
+  animation: jkPulse 2.4s ease-out infinite;
+}
+.scan-rings i:nth-child(2) { animation-delay: .8s; }
+.scan-rings i:nth-child(3) { animation-delay: 1.6s; }
+@keyframes jkPulse { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(2.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .scan-rings i { animation: none; }
+  .scan-rings i:nth-child(n+2) { display: none; }
+}
+
+/* 1b's tile: the same 64px badge gone round, ringed by a spinner instead of
+   carrying a status dot. */
+.onboard-icon.scanning { border-radius: 50%; color: var(--acc); }
+.onboard-icon.scanning::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+  border: 2.5px solid transparent;
+  border-top-color: var(--acc); border-right-color: rgba(61, 123, 255, .35);
+  animation: jkSpin 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .onboard-icon.scanning::after { animation: none; } }
+
+/* Placeholders for the device rows that have not arrived yet. */
+.scan-skeleton { display: flex; flex-direction: column; gap: 8px; }
+.scan-skeleton .row {
+  height: 52px; padding: 0 16px; border-radius: 14px;
+  background: var(--glass); border: 1px solid var(--line);
+  display: flex; align-items: center; gap: 14px;
+}
+.scan-skeleton .row:first-child { opacity: .7; }
+.scan-skeleton .row:last-child { opacity: .45; }
+.scan-skeleton .avatar { width: 32px; height: 32px; border-radius: 10px; background: var(--glass2); flex: none; }
+.scan-skeleton .lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.scan-skeleton .lines span { display: block; height: 9px; width: 140px; border-radius: 5px; background: var(--glass2); }
+.scan-skeleton .lines span + span { height: 7px; width: 90px; background: var(--glass); }
+.scan-skeleton .row:last-child .lines span { width: 110px; }
+.scan-skeleton .row:last-child .lines span + span { width: 70px; }
+/* Taller than the generic .dial-actions pill: 1a's two buttons are the only
+   thing to do on the card, so they carry the weight the artboard gives them. */
+#wizard-box .onboard-actions button { height: 46px; padding: 0 18px; border-radius: 14px; font-size: 14px; }
+#wizard-box .onboard-actions button.primary { padding: 0 24px; box-shadow: 0 10px 30px rgba(31, 91, 255, .35); }
+/* 1c's second action is text beside the button, not another pill. */
+#wizard-box .onboard-actions button.quiet {
+  padding: 0 8px; border: 0; background: none; color: var(--fg2);
+}
+#wizard-box .onboard-actions button.quiet:hover:not(:disabled) { color: var(--fg); }
+.onboard-status {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  font: 500 12px var(--sans); color: var(--fg3);
+}
+.onboard-status .dot { width: 8px; height: 8px; }
+
+.passkey {
+  font: 500 40px/1 var(--mono); letter-spacing: .16em;
+  padding: 14px 20px; border-radius: 14px;
+  background: var(--glass2); border: 1px solid var(--gb); align-self: flex-start;
+}
+.scan-spinner {
+  flex: none;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--gb); border-top-color: var(--acc);
+  animation: jkSpin .9s linear infinite;
+}
+@keyframes jkSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .scan-spinner { animation: none; } }
+/* `#wizard-box > button` is an id selector, so `button.link` loses to it and
+   Close renders as a bordered pill instead of a text link. The device rows
+   used to need the same escape; they live inside .device-list now, which puts
+   them out of that rule's reach. */
+#wizard-box > button.link {
+  height: auto; padding: 2px 6px; border: 0; background: none;
+  color: var(--acc); font: 600 12px var(--sans);
+}
+
+/* ---- scrollbars --------------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--gb); border: 3px solid transparent; background-clip: content-box; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg3); background-clip: content-box; }
+
+/* Always-visible alert strip. Sits outside the view switcher so a routing or
+   status warning survives navigation; collapses to nothing when both
+   banners are hidden. */
+#banners { position: relative; flex: none; padding: 0 20px; }
+
+/* The one action on the device card that discards state. Tinted rather than
+   filled: it restarts the app, but the binding it clears is one click to
+   restore, so this is not a delete. */
+/* Scoped to the VIEW, not to #settings-panel: this button lives in
+   #device-card, which is a sibling of #settings-panel, not a descendant. The
+   id keeps it above the (1,2,1) button rules that would otherwise win. */
+#view-settings button.danger:not(:disabled) { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+#view-settings button.danger:not(:disabled):hover { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }

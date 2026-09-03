@@ -1,0 +1,74 @@
+# Cuts a release whenever the version in package.json moves on main.
+# The build lands in a DRAFT GitHub Release - nothing reaches users until
+# someone presses Publish, which is also when GitHub creates the v* tag.
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths: ['package.json']
+
+# electron-builder creates the draft Release and uploads to it.
+permissions:
+  contents: write
+
+# Two bumps landing close together must not race for the same draft.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: check
+        # Compare against the commit main was on BEFORE this push, not HEAD^:
+        # one push can carry several commits, and a bump in the middle of a
+        # batch would otherwise go unnoticed. A missing baseline (new branch,
+        # force push) leaves `previous` empty, which counts as changed.
+        run: |
+          version=$(node -p "require('./package.json').version")
+          previous=$(git show '${{ github.event.before }}:package.json' 2>/dev/null \
+            | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || true)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$version" = "$previous" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "package.json changed but version is still $version - nothing to release"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "version ${previous:-none} -> $version"
+          fi
+
+  build:
+    needs: version
+    if: needs.version.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # A red suite must never become a downloadable package.
+      - run: make test
+
+      - name: Build .deb + AppImage into a draft Release
+        run: make dist ARGS="--publish always"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "### Konnect ${{ needs.version.outputs.version }} built" >> "$GITHUB_STEP_SUMMARY"
+          echo "Draft release is waiting at ${{ github.server_url }}/${{ github.repository }}/releases" >> "$GITHUB_STEP_SUMMARY"
