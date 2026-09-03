@@ -7,6 +7,7 @@ const { createEmitter } = require('../interface');
 const audio = require('./audio');
 const adapter = require('./adapter');
 const { createPairing } = require('./pairing');
+const { shouldReconnect } = require('../../device-select');
 
 const STATUS_POLL_MS = 30000;
 
@@ -111,6 +112,8 @@ function createLinuxBackend({ mac = null, getSetting = () => null } = {}) {
   const opp = createOppReceiver({ mac });
   const statusEmitter = createEmitter();
   let statusPoll = null;
+  // Guards against a slow Connect() stacking on the next poll tick.
+  let reconnecting = false;
 
   const api = {
     listDevices: () => device.listDevices(),
@@ -221,7 +224,26 @@ function createLinuxBackend({ mac = null, getSetting = () => null } = {}) {
   // all reads with its own error classification.
   statusPoll = setInterval(async () => {
     try {
-      statusEmitter.emit(await api.getStatus());
+      const status = await api.getStatus();
+      statusEmitter.emit(status);
+      // Self-healing reconnect. index.js's reconnectHandset() fires exactly
+      // once at startup, and under autostart-at-login that attempt lands in the
+      // login-handoff window: the link comes up, then the outgoing session's
+      // audio stack tears it down seconds later (verified on the target
+      // machine - oFono SLC at 215s, BlueZ dropped it at 219s). Nothing else
+      // ever retried, so the app sat on "handset modem offline" for the whole
+      // session though the handset was paired, trusted and in range. Keyed off
+      // the SETTING via the same predicate as the startup path, so first-run
+      // onboarding still owns the initial connect and this never races its
+      // wizard; the in-flight guard stops a slow Connect() from stacking.
+      if (!reconnecting && shouldReconnect({
+        storedMac: getSetting('device_mac'), connected: status.connected,
+      })) {
+        reconnecting = true;
+        device.connect(mac)
+          .catch((err) => console.warn('[konnect] poll reconnect failed:', err.message))
+          .finally(() => { reconnecting = false; });
+      }
     } catch (err) {
       console.error('[konnect] status poll failed:', err.message);
     }

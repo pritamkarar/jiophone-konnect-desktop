@@ -71,3 +71,21 @@ test('a stored address that no longer parses does not trigger a connect', () => 
   // startup, and this call is detached, so the throw would be unhandled.
   assert.strictEqual(shouldReconnect({ storedMac: 'not-a-mac', connected: false }), false);
 });
+
+// The 30s status poll re-evaluates this on every tick, not just once at
+// startup. The single startup attempt can land in the login-handoff window and
+// lose the link 4s later (verified in the journal: SLC at 215s, dropped at
+// 219s), and nothing else ever retried - so the app showed "handset modem
+// offline" for the whole session. Because the rule is keyed off the SETTING, a
+// bound handset stays eligible across repeated disconnected reads and only
+// stops being eligible once the link is genuinely up - which is exactly the
+// retry/stop behaviour the poll now relies on.
+test('a stored handset stays eligible for reconnect while it reports disconnected', () => {
+  const storedMac = F120B.mac;
+  // Three consecutive polls with the link still down: each must still say yes.
+  for (let i = 0; i < 3; i += 1) {
+    assert.strictEqual(shouldReconnect({ storedMac, connected: false }), true);
+  }
+  // The tick after the link comes up must stop retrying.
+  assert.strictEqual(shouldReconnect({ storedMac, connected: true }), false);
+});
