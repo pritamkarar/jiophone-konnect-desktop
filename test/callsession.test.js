@@ -318,3 +318,49 @@ test('an outgoing call is still logged as outgoing', () => {
   assert.strictEqual(store.listCalls({})[0].direction, 'out');
   store.close();
 });
+
+test('canDial is true when idle, false with an active or waiting call, true once every call is held', () => {
+  const { backend, session, store } = setup();
+  assert.strictEqual(session.canDial(), true, 'idle line refused a dial');
+
+  backend.emit({ id: 'c1', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z' });
+  assert.strictEqual(session.canDial(), false, 'dial allowed over an active call');
+
+  backend.emit({ id: 'c1', direction: 'out', number: '+919876543210', state: 'held', startedAt: '2026-09-01T12:00:00Z' });
+  assert.strictEqual(session.canDial(), true, 'dial refused although the only call is held');
+  assert.strictEqual(session.liveCalls()[0].state, 'held', 'liveCalls must report the current state');
+
+  backend.emit({ id: 'c2', direction: 'in', number: '+919804464251', state: 'waiting' });
+  assert.strictEqual(session.canDial(), false, 'a waiting call must block dialing');
+  store.close();
+});
+
+test('when the recorded call ends, a start is handed to the call still active', async () => {
+  const phases = [];
+  const { backend, store } = setup({
+    onRecord: async ({ phase, call }) => { phases.push(`${phase}:${call.id}`); },
+  });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'waiting' });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'held', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'active', startedAt: '2026-09-01T12:00:30Z' });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'disconnected', startedAt: '2026-09-01T12:00:00Z' });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepStrictEqual(phases, ['start:a', 'start:b', 'stop:a', 'start:b']);
+  store.close();
+});
+
+test('no start is handed to a call that is held when the other ends', async () => {
+  const phases = [];
+  const { backend, store } = setup({
+    onRecord: async ({ phase, call }) => { phases.push(`${phase}:${call.id}`); },
+  });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'waiting' });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'held', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'active', startedAt: '2026-09-01T12:00:30Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'disconnected', startedAt: '2026-09-01T12:00:30Z' });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepStrictEqual(phases, ['start:a', 'start:b', 'stop:b']);
+  store.close();
+});
