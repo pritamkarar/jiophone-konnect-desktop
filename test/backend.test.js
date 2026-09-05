@@ -193,3 +193,18 @@ test('mock status carries handsfree features, no subscriber numbers, and a non-r
   assert.deepStrictEqual(s.numbers, []);
   assert.deepStrictEqual(s.pnp, { vendor: '0000', product: '0000', version: '0.0.0' });
 });
+
+test('the contract names swapCalls and createMultiparty', () => {
+  assert.ok(BACKEND_METHODS.includes('swapCalls'));
+  assert.ok(BACKEND_METHODS.includes('createMultiparty'));
+});
+
+test('unbound linux backend reports empty handsfree lists and no pnp, and refuses the new calls', async () => {
+  const backend = createLinuxBackend({ mac: null });
+  const s = await backend.getStatus();
+  assert.deepStrictEqual(s.features, []);
+  assert.deepStrictEqual(s.numbers, []);
+  assert.strictEqual(s.pnp, null);
+  await assert.rejects(() => backend.swapCalls(), /No handset selected/);
+  await assert.rejects(() => backend.createMultiparty(), /No handset selected/);
+});

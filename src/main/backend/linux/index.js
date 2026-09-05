@@ -64,10 +64,12 @@ function createUnboundBackend() {
       return {
         connected: false, model: null, battery: null, signal: null,
         operator: null, roaming: false, error: NO_HANDSET,
+        features: [], numbers: [], pnp: null,
       };
     },
     onDeviceStatus(cb) { return statusEmitter.on(cb); },
     dial: reject, answer: reject, hangup: reject, sendDtmf: reject,
+    swapCalls: reject, createMultiparty: reject,
     onCall() { return () => {}; },
     startContactImport: reject, cancelContactImport: async () => {},
     onContacts() { return () => {}; },
@@ -141,6 +143,11 @@ function createLinuxBackend({ mac = null, getSetting = () => null } = {}) {
         // oFono first: BlueZ's Battery1 is absent while oFono owns HFP.
         battery: h.battery ?? d.battery,
         signal: n.signal, operator: n.operator, roaming: n.roaming,
+        // What the handset's AG advertised; gates hold/swap/merge in the UI.
+        features: h.features,
+        // Optional in oFono; empty on the F120B (spec 2026-09-05 §2).
+        numbers: h.numbers,
+        pnp: d.pnp,
         // A BlueZ fault outranks an oFono one: if the device link is down,
         // "handset modem offline" is a symptom, not the cause.
         error: d.error ?? n.error ?? h.error ?? null,
@@ -152,6 +159,8 @@ function createLinuxBackend({ mac = null, getSetting = () => null } = {}) {
     answer: (id) => telephony.answer(id),
     hangup: (id) => telephony.hangup(id),
     sendDtmf: (d) => telephony.sendDtmf(d),
+    swapCalls: () => telephony.swapCalls(),
+    createMultiparty: () => telephony.createMultiparty(),
     onCall: (cb) => telephony.onCall(cb),
 
     startContactImport: () => opp.start(),
