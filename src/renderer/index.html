@@ -100,8 +100,17 @@
             <div class="call-state" id="c-state">-</div>
             <div class="call-rec" id="c-rec" hidden><span class="dot bad"></span>REC</div>
             <div class="call-timer" id="c-timer">00:00</div>
+            <!-- The other call, when two are live: held behind the one shown,
+                 or waiting to be answered. -->
+            <div class="call-other" id="c-other" hidden>
+              <span id="c-other-text"></span>
+              <button id="c-other-answer" hidden>Answer</button>
+            </div>
             <div class="dial-actions">
               <button id="c-answer" hidden>Answer</button>
+              <button id="c-hold" hidden>Hold</button>
+              <button id="c-swap" hidden>Swap</button>
+              <button id="c-merge" hidden>Merge</button>
               <button id="c-mute" hidden aria-pressed="false" aria-label="Mute microphone" title="Mute microphone"></button>
               <button id="c-hangup">Hang up</button>
             </div>

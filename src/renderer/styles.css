@@ -357,6 +357,19 @@ button.pill:hover:not(:disabled) { color: var(--fg); }
   box-shadow: 0 10px 26px rgba(224, 68, 62, .35);
 }
 
+/* The call behind the one shown. Plain text plus, for a waiting call, its
+   own Answer - a dismissed popup must not make a waiting call unreachable. */
+.call-other {
+  display: flex; align-items: center; gap: 10px;
+  font: 500 13px var(--sans); color: var(--fg2); margin-top: -8px; margin-bottom: 8px;
+}
+.call-other[hidden] { display: none; }
+#c-other-answer {
+  height: 28px; padding: 0 12px; border-radius: 9px; border: 0;
+  background: linear-gradient(135deg, #34D399, #0FA36B); color: #fff;
+  font: 600 12px var(--sans); cursor: pointer;
+}
+
 /* ---- contacts side panel (folded in from the old Contacts view) --------- */
 #contacts-panel { padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 #ct-search {

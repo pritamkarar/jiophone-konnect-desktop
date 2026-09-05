@@ -2,6 +2,10 @@
 
 const $ = (sel) => document.querySelector(sel);
 
+// What the handset's HFP gateway advertised, from the last status event.
+// Gates the hold/swap/merge buttons: absent feature, absent button.
+let handsfreeFeatures = [];
+
 function showView(name) {
   for (const b of document.querySelectorAll('#nav button')) {
     b.classList.toggle('active', b.dataset.view === name);
@@ -48,6 +52,14 @@ function renderStatus(s) {
   $('#s-op').textContent = s.operator || '-';
   $('#s-sig').textContent = s.signal === null || s.signal === undefined ? '-' : `${s.signal}%`;
   $('#s-bat').textContent = s.battery === null || s.battery === undefined ? '-' : `${s.battery}%`;
+
+  // Re-derive the call panel's buttons only when the list actually changes:
+  // status events arrive every 30s and on every BlueZ property change.
+  const features = Array.isArray(s.features) ? s.features : [];
+  if (features.join() !== handsfreeFeatures.join()) {
+    handsfreeFeatures = features;
+    renderCall(null);
+  }
 }
 
 async function renderChecks() {
@@ -202,8 +214,12 @@ let timerHandle = null;
 let dialPending = false;
 let dialBackstop = null;
 
+// Mirrors callsession.canDial() in main: a dial is allowed only when every
+// live call is held. Main independently refuses; this is the display half.
+const allHeld = () => [...liveCalls.values()].every((c) => c.state === 'held');
+
 function updateDialButton() {
-  $('#d-call').disabled = dialPending || liveCalls.size > 0;
+  $('#d-call').disabled = dialPending || !allHeld();
 }
 
 function clearDialPending() {
@@ -316,6 +332,15 @@ async function readMute() {
   paintMute();
 }
 
+// The call whose line is behind the shown one, for the second-line Answer.
+let otherCall = null;
+
+function stateText(call) {
+  if (call.state === 'held') return 'On hold';
+  if (call.state === 'active' && call.multiparty) return 'Conference';
+  return call.state;
+}
+
 function renderCall(call) {
   if (call) {
     if (call.state === 'disconnected') liveCalls.delete(call.id);
@@ -335,8 +360,10 @@ function renderCall(call) {
     // cascade - otherwise the element's own hidden state stays stale (false)
     // between calls even though nothing renders it.
     $('#c-rec').hidden = true;
+    $('#c-other').hidden = true;
     stopTimer();
     activeCall = null;
+    otherCall = null;
     return;
   }
 
@@ -344,18 +371,46 @@ function renderCall(call) {
   panel.hidden = false;
   $('#c-name').textContent = shown.name || 'Unknown';
   $('#c-number').textContent = shown.number || '-';
-  $('#c-state').textContent = shown.state;
+  $('#c-state').textContent = stateText(shown);
   // The recorder starts on the active transition when the setting is on, so
   // this mirrors what the main process is actually doing rather than guessing.
   $('#c-rec').hidden = !(recordCalls && shown.state === 'active');
-  $('#c-answer').hidden = shown.state !== 'incoming';
+  // A lone waiting call (its partner ended first) is still answerable here;
+  // main routes it through HoldAndAnswer, which accepts it with nothing to hold.
+  $('#c-answer').hidden = !(shown.state === 'incoming' || shown.state === 'waiting');
   // Only while the call is up: there is no microphone in the path to mute
-  // while it is still ringing or dialling.
-  const live = shown.state === 'active';
-  $('#c-mute').hidden = !live;
-  if (!live) muteReadFor = null;
+  // while it is still ringing or dialling. A held call keeps its timer -
+  // it is still a call - but has no microphone in the path either.
+  const talking = shown.state === 'active';
+  $('#c-mute').hidden = !talking;
+  if (!talking) muteReadFor = null;
   else if (muteReadFor !== shown.id) { muteReadFor = shown.id; readMute(); }
-  if (live) startTimer(shown.startedAt); else stopTimer();
+  if (talking || shown.state === 'held') startTimer(shown.startedAt); else stopTimer();
+
+  // Hold / Resume / Swap / Merge, derived from what is live (spec §7). All
+  // hidden while a call is waiting: oFono refuses CHLD=2 and CHLD=3 then,
+  // and the waiting call must be answered or declined first.
+  const calls = [...liveCalls.values()];
+  const active = calls.filter((c) => c.state === 'active').length;
+  const held = calls.filter((c) => c.state === 'held').length;
+  const waiting = calls.filter((c) => c.state === 'waiting').length;
+  const settled = waiting === 0 && handsfreeFeatures.includes('three-way-calling');
+  const holdBtn = $('#c-hold');
+  if (settled && active >= 1 && held === 0) { holdBtn.hidden = false; holdBtn.textContent = 'Hold'; }
+  else if (settled && active === 0 && held >= 1) { holdBtn.hidden = false; holdBtn.textContent = 'Resume'; }
+  else holdBtn.hidden = true;
+  $('#c-swap').hidden = !(settled && active >= 1 && held >= 1);
+  $('#c-merge').hidden = !(settled && active >= 1 && held >= 1 && !shown.multiparty
+    && handsfreeFeatures.includes('create-multiparty'));
+
+  // The other call: held behind the shown one, or waiting to be answered.
+  otherCall = calls.find((c) => c.id !== shown.id && (c.state === 'held' || c.state === 'waiting')) || null;
+  $('#c-other').hidden = !otherCall;
+  if (otherCall) {
+    const who = otherCall.name || otherCall.number || 'Unknown';
+    $('#c-other-text').textContent = `${otherCall.state === 'waiting' ? 'Waiting' : 'On hold'}: ${who}`;
+    $('#c-other-answer').hidden = otherCall.state !== 'waiting';
+  }
 }
 
 for (const key of document.querySelectorAll('.keypad button')) {
@@ -391,8 +446,8 @@ $('#d-call').addEventListener('click', async () => {
   // A dial is already going out - silently ignore the extra click rather than
   // scolding the user for double-clicking.
   if (dialPending) return;
-  if (liveCalls.size > 0) {
-    alert('A call is already in progress.');
+  if (!allHeld()) {
+    alert('A call is in progress; put it on hold to dial another.');
     return;
   }
   const number = $('#d-number').value.trim();
@@ -438,6 +493,24 @@ $('#c-answer').addEventListener('click', async () => {
   } catch (e) {
     alert(`Could not answer: ${e.message}`);
   }
+});
+
+// Failures here must be visible, exactly as for hangup: a swap that silently
+// failed leaves the user talking to the wrong caller.
+async function callAction(verb, fn) {
+  try {
+    await fn();
+  } catch (e) {
+    alert(`Could not ${verb}: ${e.message}`);
+  }
+}
+$('#c-hold').addEventListener('click', () => {
+  callAction($('#c-hold').textContent.toLowerCase(), () => window.konnect.swapCalls());
+});
+$('#c-swap').addEventListener('click', () => callAction('swap', () => window.konnect.swapCalls()));
+$('#c-merge').addEventListener('click', () => callAction('merge', () => window.konnect.createMultiparty()));
+$('#c-other-answer').addEventListener('click', () => {
+  if (otherCall) callAction('answer', () => window.konnect.answer(otherCall.id));
 });
 
 // Same rule as hangup: a mute that silently failed leaves the user talking to
