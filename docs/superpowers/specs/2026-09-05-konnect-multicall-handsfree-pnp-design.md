@@ -417,6 +417,8 @@ section.
 | 4 | After hanging up B, is A resumed by the handset or left held? | Continue from 3 | Nothing in code; documented behaviour for the README (§7) |
 | 5 | Does `CreateMultiparty` set `Multiparty=true` on both and does `HangupMultiparty` end both? | Continue from 3 | Merge and conference hang-up (§4.3, §7) |
 
+Outcomes pending: run `node scripts/verify-multicall.js 44:CD:0E:AD:5E:34` and record each row's result here.
+
 Steps 1 and 3 to 5 each place or receive a real call and cost airtime. The
 probe script prints every call event so the sequence is recorded verbatim.
 
