@@ -584,7 +584,7 @@ button.pill:hover:not(:disabled) { color: var(--fg); }
 }
 #device-card img { height: 210px; flex: none; filter: drop-shadow(0 24px 30px rgba(0, 0, 0, .4)); }
 #device-card .name { font: 700 17px var(--sans); text-align: center; }
-#set-device { font: 400 11.5px var(--mono); color: var(--fg3); margin: 0; text-align: center; }
+#set-device, #set-device-number, #set-device-pnp { font: 400 11.5px var(--mono); color: var(--fg3); margin: 0; text-align: center; }
 .device-stats { width: 100%; display: grid; grid-template-columns: 1fr; gap: 8px; }
 .device-stats .card .v { font-size: 14px; }
 #device-card .dial-actions { width: 100%; margin-top: auto; flex-direction: column; }
