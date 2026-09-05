@@ -136,3 +136,60 @@ test('unbound linux backend dispose() resolves even when the adapter module reje
     adapterModule.stopScan = originalStopScan;
   }
 });
+
+const settle = (ms = 200) => new Promise((r) => setTimeout(r, ms));
+
+test('mock: a second incoming call arrives as waiting; answering it holds the first; swap and merge follow', async () => {
+  const backend = createBackend({ platform: 'linux', mock: true });
+  const calls = new Map();
+  backend.onCall((c) => calls.set(c.id, c));
+
+  const a = await backend.dial('+919876543210');
+  await settle();
+  assert.strictEqual(calls.get(a).state, 'active');
+
+  const b = backend.simulateIncoming('+919804464251');
+  assert.strictEqual(calls.get(b).state, 'waiting', 'a second inbound call must be waiting, not incoming');
+
+  await backend.answer(b);
+  assert.strictEqual(calls.get(a).state, 'held', 'answering the waiting call must hold the first');
+  assert.strictEqual(calls.get(b).state, 'active');
+
+  await backend.swapCalls();
+  assert.strictEqual(calls.get(a).state, 'active');
+  assert.strictEqual(calls.get(b).state, 'held');
+
+  await backend.createMultiparty();
+  assert.strictEqual(calls.get(a).multiparty, true);
+  assert.strictEqual(calls.get(b).multiparty, true);
+  assert.strictEqual(calls.get(b).state, 'active');
+
+  await backend.hangup(a);
+  assert.strictEqual(calls.get(a).state, 'disconnected');
+  assert.strictEqual(calls.get(b).state, 'disconnected', 'hanging up a conference ends every member');
+  backend.dispose();
+});
+
+test('mock refuses a dial while a call is active and allows one once every call is held', async () => {
+  const backend = createBackend({ platform: 'linux', mock: true });
+  const calls = new Map();
+  backend.onCall((c) => calls.set(c.id, c));
+  const a = await backend.dial('+919876543210');
+  await settle();
+  await assert.rejects(() => backend.dial('+919804464251'), /put it on hold/);
+  await backend.swapCalls();
+  assert.strictEqual(calls.get(a).state, 'held');
+  const b = await backend.dial('+919804464251');
+  await settle();
+  assert.strictEqual(calls.get(b).state, 'active');
+  assert.strictEqual(calls.get(a).state, 'held');
+  backend.dispose();
+});
+
+test('mock status carries handsfree features, no subscriber numbers, and a non-real pnp', async () => {
+  const backend = createBackend({ platform: 'linux', mock: true });
+  const s = await backend.getStatus();
+  assert.deepStrictEqual(s.features, ['three-way-calling', 'release-all-held', 'create-multiparty']);
+  assert.deepStrictEqual(s.numbers, []);
+  assert.deepStrictEqual(s.pnp, { vendor: '0000', product: '0000', version: '0.0.0' });
+});
