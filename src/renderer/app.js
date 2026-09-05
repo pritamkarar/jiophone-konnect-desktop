@@ -206,11 +206,12 @@ const liveCalls = new Map();
 let activeCall = null;
 let timerHandle = null;
 
-// The Call button is enabled only when nothing is live AND no dial is waiting
-// for its first call event. Inferring that from liveCalls alone is not enough:
-// dial() resolves before CallAdded arrives, so liveCalls is briefly empty
-// while a call is genuinely on its way - and a backstop armed by an EARLIER
-// dial can fire inside a later dial's window and re-open the same hole.
+// The Call button is enabled only when every live call is held (idle counts)
+// AND no dial is waiting for its first call event. Inferring that from
+// liveCalls alone is not enough: dial() resolves before CallAdded arrives, so
+// liveCalls is briefly empty while a call is genuinely on its way - and a
+// backstop armed by an EARLIER dial can fire inside a later dial's window and
+// re-open the same hole.
 let dialPending = false;
 let dialBackstop = null;
 
@@ -349,7 +350,9 @@ function renderCall(call) {
 
   // A call exists, so whatever dial was pending has landed. Cancelling the
   // backstop here is what stops it firing inside a LATER dial's window.
-  if (liveCalls.size > 0) clearDialPending();
+  // Only on a call event: renderStatus re-renders with null when the feature
+  // list changes, and that proves nothing about a pending dial.
+  if (call && liveCalls.size > 0) clearDialPending();
   updateDialButton();
 
   const shown = primaryCall();
@@ -541,8 +544,8 @@ window.konnect.onMicMute((on) => {
 // up loses the adopted-call broadcast, which main sends before this page has
 // finished loading. Re-seed from main rather than assuming the line is idle,
 // or the call panel stays hidden and Hang up is unreachable during a live
-// call. Main independently refuses a dial while a call exists, so this is the
-// display half of that fix, not the safety half.
+// call. Main independently refuses a dial unless every live call is held, so
+// this is the display half of that fix, not the safety half.
 (async () => {
   try {
     for (const call of await window.konnect.liveCalls()) renderCall(call);

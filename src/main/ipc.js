@@ -37,7 +37,8 @@ const writeFile = async (p, body) => {
 // channel anywhere else is a bug: the preload allowlist mirrors this list.
 function registerIpc({
   backend, store, broadcast, hasLiveCall = () => false, liveCalls = () => [],
-  canDial = () => true,
+  // Fails closed: a caller that forgets to wire the guard cannot dial at all.
+  canDial = () => false,
   getMac = () => null, selectDevice = async () => ({ relaunching: false }),
   forgetDevice = async () => ({ relaunching: false }),
   ringSettings = () => ({}),

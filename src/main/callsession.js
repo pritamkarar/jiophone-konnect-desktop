@@ -61,6 +61,11 @@ function createCallSession({
     if (!call || !call.id) return;
 
     if (call.state === 'disconnected') {
+      // Marked BEFORE the awaited stop: a sibling ending in the same instant
+      // runs its own hand-off loop while this entry is still in `live`, and
+      // must not hand a recorder to a call that is on its way out.
+      const ending = live.get(call.id);
+      if (ending) ending.state = 'disconnected';
       // Awaited, because attachRecording() must land before persist() writes
       // the row - there is no path to backfill recording_path afterwards.
       //
@@ -108,6 +113,9 @@ function createCallSession({
       // The current oFono state. canDial() below reads it, and a renderer
       // re-seeding from liveCalls() after a reload needs it to draw the panel.
       state: call.state,
+      // Read back by the renderer's re-seed: the "Conference" label and the
+      // Merge button's visibility both key off it.
+      multiparty: Boolean(call.multiparty),
     };
     live.set(call.id, next);
 
