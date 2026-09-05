@@ -37,6 +37,8 @@ const writeFile = async (p, body) => {
 // channel anywhere else is a bug: the preload allowlist mirrors this list.
 function registerIpc({
   backend, store, broadcast, hasLiveCall = () => false, liveCalls = () => [],
+  // Fails closed: a caller that forgets to wire the guard cannot dial at all.
+  canDial = () => false,
   getMac = () => null, selectDevice = async () => ({ relaunching: false }),
   forgetDevice = async () => ({ relaunching: false }),
   ringSettings = () => ({}),
@@ -117,7 +119,10 @@ function registerIpc({
     // the adopted-call broadcast is sent before the window finishes loading.
     // Main holds the authoritative set, so the guard belongs here.
     'call:dial': (_e, number) => {
-      if (hasLiveCall()) throw new Error('a call is already in progress');
+      // "Add call" is hold-then-dial (spec 2026-09-05 §5): refused unless
+      // every live call is held, so the money-safety property this guard
+      // exists for survives a second call.
+      if (!canDial()) throw new Error('a call is in progress; put it on hold to dial another');
       // The dial field filters itself as you type, but that is a convenience
       // and this is the boundary: the channel outlives any renderer reload,
       // and every dial path in the app - keypad, speed dial, call log, a
@@ -132,6 +137,11 @@ function registerIpc({
     'call:answer': (_e, id) => backend.answer(id),
     'call:hangup': (_e, id) => backend.hangup(id),
     'call:dtmf': (_e, digits) => backend.sendDtmf(digits),
+    // CHLD=2 and CHLD=3. Which of hold/resume/swap a swap means is decided by
+    // what is live, and the renderer already knows that; main does not need
+    // a separate channel per meaning.
+    'call:swap': () => backend.swapCalls(),
+    'call:merge': () => backend.createMultiparty(),
     'setup:check': (_e, mac) => runChecks({ exec, mac: mac || getMac() }),
     'setup:remediate': (_e, id, mac) => remediate(id, { exec, writeFile, mac: mac || getMac() }),
     'calls:list': (_e, opts) => store.listCalls(opts || {}),

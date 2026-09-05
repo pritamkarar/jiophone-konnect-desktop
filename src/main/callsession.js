@@ -9,7 +9,7 @@ const { normaliseIndian, UNKNOWN_NUMBER } = require('../shared/phone');
 function createCallSession({
   backend, store, now = () => new Date(), onRecord = null, onPersisted = null,
 }) {
-  const live = new Map();   // call id -> { direction, number, name, startedAt }
+  const live = new Map();   // call id -> { direction, number, name, startedAt, state }
   let unsubscribe = null;
 
   function persist(id) {
@@ -61,6 +61,11 @@ function createCallSession({
     if (!call || !call.id) return;
 
     if (call.state === 'disconnected') {
+      // Marked BEFORE the awaited stop: a sibling ending in the same instant
+      // runs its own hand-off loop while this entry is still in `live`, and
+      // must not hand a recorder to a call that is on its way out.
+      const ending = live.get(call.id);
+      if (ending) ending.state = 'disconnected';
       // Awaited, because attachRecording() must land before persist() writes
       // the row - there is no path to backfill recording_path afterwards.
       //
@@ -77,6 +82,19 @@ function createCallSession({
         }
       }
       persist(call.id);
+      // Hand-off (spec 2026-09-05 §8): the recorder follows the audio link.
+      // With the ended call's recorder stopped, the call still being spoken
+      // on - if any - gets its turn. The handler's one-at-a-time rule and its
+      // setting check both still apply, so this is a no-op unless a recorder
+      // can and should start. Fire-and-forget and caught, as the start
+      // trigger below is: this runs inside a D-Bus signal handler.
+      if (onRecord) {
+        for (const [id, entry] of live) {
+          if (entry.state !== 'active') continue;
+          Promise.resolve(onRecord({ phase: 'start', call: { id, ...entry } }))
+            .catch((err) => console.error('[konnect] recorder hand-off failed:', err.message));
+        }
+      }
       return;
     }
 
@@ -92,6 +110,12 @@ function createCallSession({
       // StartTime arrives once and must never be overwritten with null.
       startedAt: call.startedAt || prev.startedAt || null,
       recordingPath: prev.recordingPath || null,
+      // The current oFono state. canDial() below reads it, and a renderer
+      // re-seeding from liveCalls() after a reload needs it to draw the panel.
+      state: call.state,
+      // Read back by the renderer's re-seed: the "Conference" label and the
+      // Merge button's visibility both key off it.
+      multiparty: Boolean(call.multiparty),
     };
     live.set(call.id, next);
 
@@ -108,6 +132,11 @@ function createCallSession({
     start() { if (!unsubscribe) unsubscribe = backend.onCall(handle); },
     // Authoritative: main owns the live-call set, the renderer only mirrors it.
     hasLiveCall() { return live.size > 0; },
+    // The dial guard. "Add call" is hold-then-dial: a dial is refused unless
+    // every live call is held, so an accidental Call press during a
+    // conversation still cannot place a second real call. Vacuously true
+    // when idle.
+    canDial() { return [...live.values()].every((e) => e.state === 'held'); },
     liveCalls() { return [...live.entries()].map(([id, entry]) => ({ id, ...entry })); },
     // Async so recordings can be finalised before their rows are written -
     // the same ordering the disconnected path uses. Without it a call still

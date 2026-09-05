@@ -31,6 +31,17 @@ async function renderDevice() {
   // Only a SAVED mac can be forgotten. A mac the backend merely resolved at
   // startup was never persisted, so there is nothing to clear.
   $('#set-forget-device').disabled = !saved;
+  // Both optional, both from the status object the title bar already reads.
+  // The F120B reports no subscriber number (spec 2026-09-05 §2), so that row
+  // stays hidden there; PnP is present for any paired handset.
+  const status = await window.konnect.getStatus().catch(() => null);
+  const numbers = Array.isArray(status?.numbers) ? status.numbers : [];
+  const numRow = $('#set-device-number');
+  numRow.textContent = numbers.length ? `Number: ${numbers.join(', ')}` : '';
+  numRow.hidden = numbers.length === 0;
+  const pnpRow = $('#set-device-pnp');
+  pnpRow.textContent = window.Modalias.describePnp(status?.pnp);
+  pnpRow.hidden = !status?.pnp;
 }
 
 // Bumped at the top of every renderSettings() call, the same render-token

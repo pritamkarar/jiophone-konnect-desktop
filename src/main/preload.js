@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('konnect', {
   answer: (id) => ipcRenderer.invoke('call:answer', id),
   hangup: (id) => ipcRenderer.invoke('call:hangup', id),
   sendDtmf: (d) => ipcRenderer.invoke('call:dtmf', d),
+  swapCalls: () => ipcRenderer.invoke('call:swap'),
+  createMultiparty: () => ipcRenderer.invoke('call:merge'),
   runSetupChecks: (mac) => ipcRenderer.invoke('setup:check', mac),
   remediate: (id, mac) => ipcRenderer.invoke('setup:remediate', id, mac),
   listCalls: (o) => ipcRenderer.invoke('calls:list', o),

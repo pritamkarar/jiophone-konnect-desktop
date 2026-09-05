@@ -257,10 +257,13 @@ function showIncoming(call) {
   if (dismissedCallId === call.id) return;
   closeIncoming();
   incomingCallId = call.id;
+  const waiting = call.state === 'waiting';
   const ring = ringSettings();
-  if (ring.enabled && backend.audio) backend.audio.startRing(ring);
+  // No PC ringtone for a waiting call: it would play through the sink that
+  // is carrying the conversation. The popup and the notification remain.
+  if (ring.enabled && backend.audio && !waiting) backend.audio.startRing(ring);
   const q = new URLSearchParams({
-    id: call.id, number: call.number || '', name: call.name || 'Unknown',
+    id: call.id, number: call.number || '', name: call.name || 'Unknown', state: call.state,
   }).toString();
 
   incomingWin = new BrowserWindow({
@@ -277,7 +280,7 @@ function showIncoming(call) {
   incomingWin.loadFile(path.join(__dirname, '..', 'renderer', 'incoming.html'), { search: q });
 
   new Notification({
-    title: `Incoming call - ${call.name || 'Unknown'}`,
+    title: `${waiting ? 'Call waiting' : 'Incoming call'} - ${call.name || 'Unknown'}`,
     body: call.number || '',
     icon: ICON,
   }).show();
@@ -293,7 +296,7 @@ async function dialFromTray(number) {
   // the message below appears.
   showMainWindow();
   try {
-    if (callSession?.hasLiveCall()) throw new Error('A call is already in progress.');
+    if (callSession && !callSession.canDial()) throw new Error('A call is in progress; put it on hold to dial another.');
     if (!isDialable(number)) throw new Error(`Not a number Konnect can dial: ${number}`);
     await backend.dial(number);
     console.log('[konnect] dialled from the tray');
@@ -537,6 +540,12 @@ app.whenReady().then(async () => {
   boundMac = mac;
   backend = createBackend({ mock, mac, getSetting: (k) => store.getSetting(k) });
   console.log('[konnect] bound to handset:', mac || '(none - no phone paired)');
+  // Logged once so a journal from another JioPhone model carries the
+  // identifiers a bug report needs. Modalias survives disconnection, so this
+  // answers even when the handset is out of range at launch.
+  backend.getStatus().then((s) => {
+    if (s.pnp) console.log(`[konnect] handset ${s.model || '?'} pnp ${s.pnp.vendor}:${s.pnp.product} firmware ${s.pnp.version}`);
+  }).catch(() => {});
 
   // Caller id is resolved by wrapping the SOURCE, once. The incoming-call
   // popup (below), the dialer's call panel (ipc.js's call:changed broadcast)
@@ -568,6 +577,7 @@ app.whenReady().then(async () => {
     broadcast,
     // Reached lazily: callSession is assigned on the next statement.
     hasLiveCall: () => callSession?.hasLiveCall() ?? false,
+    canDial: () => callSession?.canDial() ?? false,
     liveCalls: () => callSession?.liveCalls() ?? [],
     getMac: () => boundMac,
     selectDevice,

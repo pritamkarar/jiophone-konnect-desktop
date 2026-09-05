@@ -357,6 +357,19 @@ button.pill:hover:not(:disabled) { color: var(--fg); }
   box-shadow: 0 10px 26px rgba(224, 68, 62, .35);
 }
 
+/* The call behind the one shown. Plain text plus, for a waiting call, its
+   own Answer - a dismissed popup must not make a waiting call unreachable. */
+.call-other {
+  display: flex; align-items: center; gap: 10px;
+  font: 500 13px var(--sans); color: var(--fg2); margin-top: -8px; margin-bottom: 8px;
+}
+.call-other[hidden] { display: none; }
+#c-other-answer {
+  height: 28px; padding: 0 12px; border-radius: 9px; border: 0;
+  background: linear-gradient(135deg, #34D399, #0FA36B); color: #fff;
+  font: 600 12px var(--sans); cursor: pointer;
+}
+
 /* ---- contacts side panel (folded in from the old Contacts view) --------- */
 #contacts-panel { padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 #ct-search {
@@ -571,7 +584,7 @@ button.pill:hover:not(:disabled) { color: var(--fg); }
 }
 #device-card img { height: 210px; flex: none; filter: drop-shadow(0 24px 30px rgba(0, 0, 0, .4)); }
 #device-card .name { font: 700 17px var(--sans); text-align: center; }
-#set-device { font: 400 11.5px var(--mono); color: var(--fg3); margin: 0; text-align: center; }
+#set-device, #set-device-number, #set-device-pnp { font: 400 11.5px var(--mono); color: var(--fg3); margin: 0; text-align: center; }
 .device-stats { width: 100%; display: grid; grid-template-columns: 1fr; gap: 8px; }
 .device-stats .card .v { font-size: 14px; }
 #device-card .dial-actions { width: 100%; margin-top: auto; flex-direction: column; }

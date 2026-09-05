@@ -318,3 +318,108 @@ test('an outgoing call is still logged as outgoing', () => {
   assert.strictEqual(store.listCalls({})[0].direction, 'out');
   store.close();
 });
+
+test('canDial is true when idle, false with an active or waiting call, true once every call is held', () => {
+  const { backend, session, store } = setup();
+  assert.strictEqual(session.canDial(), true, 'idle line refused a dial');
+
+  backend.emit({ id: 'c1', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z' });
+  assert.strictEqual(session.canDial(), false, 'dial allowed over an active call');
+
+  backend.emit({ id: 'c1', direction: 'out', number: '+919876543210', state: 'held', startedAt: '2026-09-01T12:00:00Z' });
+  assert.strictEqual(session.canDial(), true, 'dial refused although the only call is held');
+  assert.strictEqual(session.liveCalls()[0].state, 'held', 'liveCalls must report the current state');
+
+  backend.emit({ id: 'c2', direction: 'in', number: '+919804464251', state: 'waiting' });
+  assert.strictEqual(session.canDial(), false, 'a waiting call must block dialing');
+  store.close();
+});
+
+test('when the recorded call ends, a start is handed to the call still active', async () => {
+  const phases = [];
+  const { backend, store } = setup({
+    onRecord: async ({ phase, call }) => { phases.push(`${phase}:${call.id}`); },
+  });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'waiting' });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'held', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'active', startedAt: '2026-09-01T12:00:30Z' });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'disconnected', startedAt: '2026-09-01T12:00:00Z' });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepStrictEqual(phases, ['start:a', 'start:b', 'stop:a', 'start:b']);
+  store.close();
+});
+
+test('no start is handed to a call that is held when the other ends', async () => {
+  const phases = [];
+  const { backend, store } = setup({
+    onRecord: async ({ phase, call }) => { phases.push(`${phase}:${call.id}`); },
+  });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'waiting' });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'held', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'active', startedAt: '2026-09-01T12:00:30Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'disconnected', startedAt: '2026-09-01T12:00:30Z' });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepStrictEqual(phases, ['start:a', 'start:b', 'stop:b']);
+  store.close();
+});
+
+test('two calls ending together do not hand a recorder to the one that is also ending', async () => {
+  const phases = [];
+  const { backend, store } = setup({
+    onRecord: async ({ phase, call }) => { phases.push(`${phase}:${call.id}`); },
+  });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z', multiparty: true });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'active', startedAt: '2026-09-01T12:00:30Z', multiparty: true });
+  // A conference hang-up: oFono (and the mock) emit both disconnects back to back.
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'disconnected', startedAt: '2026-09-01T12:00:00Z', multiparty: true });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'disconnected', startedAt: '2026-09-01T12:00:30Z', multiparty: true });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepStrictEqual(phases, ['start:a', 'start:b', 'stop:a', 'stop:b'], 'a start was handed to a call that was already ending');
+  assert.strictEqual(store.listCalls({}).length, 2);
+  store.close();
+});
+
+// Deferred Task 8: a rejection from the hand-off 'start' must not surface as
+// an unhandled rejection out of a D-Bus signal handler, exactly as a
+// rejection from the ordinary call-start trigger must not (see the
+// recorder-failure-on-call-start test above).
+test('a recorder failure on hand-off start does not lose the call or leak an unhandled rejection', async () => {
+  const { store, backend } = setup({
+    // Also throws on b's ordinary first-active start trigger - fine, that
+    // path is already covered elsewhere; this test only asserts nothing leaks
+    // and both rows persist.
+    onRecord: async ({ phase, call }) => {
+      if (phase === 'start' && call.id === 'b') throw new Error('recorder blew up on hand-off');
+    },
+  });
+
+  const leaked = [];
+  const onUnhandled = (err) => leaked.push(err);
+  process.on('unhandledRejection', onUnhandled);
+
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'waiting' });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'held', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'active', startedAt: '2026-09-01T12:00:30Z' });
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'disconnected', startedAt: '2026-09-01T12:00:00Z' });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'disconnected', startedAt: '2026-09-01T12:00:30Z' });
+  await new Promise((r) => setTimeout(r, 20));
+
+  process.off('unhandledRejection', onUnhandled);
+
+  assert.strictEqual(store.listCalls({}).length, 2, 'both calls must survive the hand-off failure');
+  assert.deepStrictEqual(leaked, [], 'a rejection from the hand-off start must not surface as an unhandled rejection');
+  store.close();
+});
+
+test('a reload mid-conference redraws Conference: liveCalls() reports multiparty', () => {
+  const { backend, session, store } = setup();
+  backend.emit({ id: 'a', direction: 'out', number: '+919876543210', state: 'active', startedAt: '2026-09-01T12:00:00Z', multiparty: true });
+  backend.emit({ id: 'b', direction: 'in', number: '+919804464251', state: 'active', startedAt: '2026-09-01T12:00:30Z' });
+  const byId = Object.fromEntries(session.liveCalls().map((c) => [c.id, c]));
+  assert.strictEqual(byId.a.multiparty, true, 'a conference call must report multiparty on re-seed');
+  assert.strictEqual(byId.b.multiparty, false, 'a plain call must not report multiparty');
+  store.close();
+});

@@ -10,7 +10,7 @@
 
 ## ✨ Features
 
-- **📞 Calls** — Dial numbers, answer and hang up calls, send DTMF tones, and view live call state and duration.
+- **📞 Calls** — Dial numbers, answer and hang up calls, send DTMF tones, and view live call state and duration. Hold, resume, swap and merge calls; answer a second call while on the first; put a call on hold to dial another.
 - **🔔 Incoming-call popup** — Get a desktop notification with contact lookup for incoming calls.
 - **👤 Contacts** — Import contacts from the phone over Bluetooth OBEX.
 - **🕘 Call history** — Search call logs, view statistics, and access recently dialled numbers from the tray menu.
@@ -47,6 +47,12 @@ PBAP phonebook retrieval is not available on the tested handset. Contacts theref
 
 ### Hardware compatibility
 Bluetooth profiles and firmware behavior vary between JioPhone models. A device that is not the tested F120B may require additional work or may not expose the required profiles at all.
+
+### Own phone number
+The F120B does not report its subscriber number over HFP (the SIM carries no MSISDN), so Konnect cannot show it. A handset that does report one shows it in Settings.
+
+### Recording with two calls
+One recorder runs at a time and follows the audio link. While a second call is up, its audio lands in the first call's recording until that call ends; the second call then gets a recorder of its own.
 
 ## 🚀 Quick start
 

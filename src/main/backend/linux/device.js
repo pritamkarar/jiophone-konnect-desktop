@@ -3,6 +3,7 @@ const {
   systemBus, devicePathFor, unwrap, getInterface, isAbsentError, describeDBusError,
 } = require('./bus');
 const { createEmitter } = require('../interface');
+const { parseModalias } = require('../../../shared/modalias');
 
 const BLUEZ = 'org.bluez';
 const PROPS = 'org.freedesktop.DBus.Properties';
@@ -100,6 +101,9 @@ function createDeviceMonitor({
         connected: Boolean(dev.props.Connected),
         model: dev.props.Alias || dev.props.Name || null,
         battery: typeof bat.props.Percentage === 'number' ? bat.props.Percentage : null,
+        // Bluetooth Device ID, present for a paired handset whether or not it
+        // is connected right now. Free: GetAll already fetched it.
+        pnp: parseModalias(dev.props.Modalias),
         error,
       };
     },

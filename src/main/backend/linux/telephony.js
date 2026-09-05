@@ -52,6 +52,9 @@ function toCall(path, rawProps, direction) {
     number: p.LineIdentification || null,
     name: p.Name ? p.Name : null,
     startedAt: p.StartTime || null,
+    // True for every member of a conference. Hanging one of them up needs
+    // the manager, not the call (see hangup()).
+    multiparty: p.Multiparty === true,
   };
 }
 
@@ -198,21 +201,26 @@ function createTelephony({ mac, getInterfaceFn = getInterface, systemBusFn = sys
   return {
     ensureOnline,
 
-    // Battery comes from HFP's 0-5 `battchg` indicator, surfaced by oFono.
-    // BlueZ's Battery1 is absent in this configuration (see device.js), so
-    // this is the real source. Scale is 20% per level: level 4 reads as 80%,
-    // which matches what BlueZ reported before oFono took over HFP.
-    async getBattery() {
+    // One GetProperties, three answers. Battery comes from HFP's 0-5
+    // `battchg` indicator (BlueZ's Battery1 is absent while oFono owns HFP,
+    // see device.js); 20% per level matches what BlueZ reported before oFono
+    // took over. Features is oFono's list of what the handset's AG advertised
+    // (the F120B: three-way-calling, release-all-held, create-multiparty) and
+    // gates the hold/swap/merge buttons. SubscriberNumbers is optional in
+    // oFono and absent on the F120B, which answers AT+CNUM with nothing.
+    async getHandsfree() {
       try {
         const hf = await iface(modemPath, 'org.ofono.Handsfree');
         const p = unwrap(await hf.GetProperties());
         const level = p.BatteryChargeLevel;
         return {
           battery: typeof level === 'number' ? Math.max(0, Math.min(100, level * 20)) : null,
+          features: Array.isArray(p.Features) ? p.Features : [],
+          numbers: Array.isArray(p.SubscriberNumbers) ? p.SubscriberNumbers : [],
           error: null,
         };
       } catch (err) {
-        return { battery: null, error: describeTelephonyError(err) };
+        return { battery: null, features: [], numbers: [], error: describeTelephonyError(err) };
       }
     },
 
@@ -242,14 +250,49 @@ function createTelephony({ mac, getInterfaceFn = getInterface, systemBusFn = sys
       return path;
     },
 
+    // oFono defines VoiceCall.Answer for the 'incoming' state only. A second
+    // inbound call while one is up is 'waiting', and is answered through the
+    // manager: HoldAndAnswer is one CHLD=2 that holds the active call and
+    // accepts the waiting one. oFono refuses it when a held AND an active
+    // call already exist - there is no third slot - and that error surfaces
+    // to the caller as any other.
     async answer(callId) {
+      if (watched.get(callId)?.props?.State === 'waiting') {
+        const mgr = await start();
+        await mgr.HoldAndAnswer();
+        return;
+      }
       const call = await iface(callId, 'org.ofono.VoiceCall');
       await call.Answer();
     },
 
+    // Hanging up ONE member of a conference needs release-specified-active-
+    // call (CHLD=1x), which the F120B does not advertise. "Hang up the
+    // conference" is what the button means, and that is HangupMultiparty.
+    // A held or waiting call still goes through VoiceCall.Hangup, which oFono
+    // maps to CHLD=0 (release-all-held, advertised).
     async hangup(callId) {
+      if (watched.get(callId)?.props?.Multiparty === true) {
+        const mgr = await start();
+        await mgr.HangupMultiparty();
+        return;
+      }
       const call = await iface(callId, 'org.ofono.VoiceCall');
       await call.Hangup();
+    },
+
+    // CHLD=2. Holds the lone active call, resumes the lone held call, or
+    // swaps one of each. oFono refuses it while a call is waiting; the
+    // renderer hides the button in that state rather than let it fail.
+    async swapCalls() {
+      const mgr = await start();
+      await mgr.SwapCalls();
+    },
+
+    // CHLD=3. Needs exactly one active and one held call.
+    async createMultiparty() {
+      const mgr = await start();
+      await mgr.CreateMultiparty();
     },
 
     async sendDtmf(digits) {

@@ -10,7 +10,7 @@ class UnsupportedPlatformError extends Error {
 // The contract. Every backend must implement all of these.
 const BACKEND_METHODS = [
   'listDevices', 'connect', 'disconnect', 'getStatus', 'onDeviceStatus',
-  'dial', 'answer', 'hangup', 'sendDtmf', 'onCall',
+  'dial', 'answer', 'hangup', 'sendDtmf', 'swapCalls', 'createMultiparty', 'onCall',
   'startContactImport', 'cancelContactImport', 'onContacts',
   'startRecording', 'stopRecording',
   'verifyLink', 'getCallVolume', 'setCallVolume', 'onCallVolume',

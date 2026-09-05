@@ -15,7 +15,9 @@ function createMockBackend() {
   const timers = new Set();
   const recorded = new Set();
   let seq = 0;
-  let current = null;
+  // Every live call keyed by id, so hold, swap, waiting and conference can
+  // be exercised without a handset. Mirrors the real oFono state words.
+  const calls = new Map();
 
   const later = (ms, fn) => {
     const t = setTimeout(() => { timers.delete(t); fn(); }, ms);
@@ -27,13 +29,24 @@ function createMockBackend() {
   const status = {
     connected: true, model: 'F120B', battery: 80,
     signal: 100, operator: 'JIO', roaming: false, error: null,
+    // What the real F120B advertises (spec 2026-09-05 §2), minus the
+    // echo-cancelling flag nothing reads. numbers is empty because the real
+    // handset reports none. pnp is deliberately NOT the real handset's.
+    features: ['three-way-calling', 'release-all-held', 'create-multiparty'],
+    numbers: [],
+    pnp: { vendor: '0000', product: '0000', version: '0.0.0' },
   };
 
-  function emitCall(state, extra = {}) {
-    if (!current) return;
-    current = { ...current, state, ...extra };
-    callEmitter.emit(current);
+  function emitCall(id, patch) {
+    const c = calls.get(id);
+    if (!c) return;
+    const next = { ...c, ...patch };
+    if (next.state === 'disconnected') calls.delete(id); else calls.set(id, next);
+    callEmitter.emit(next);
   }
+
+  // Same rule main enforces in callsession.canDial(): vacuously true when idle.
+  const canDial = () => [...calls.values()].every((c) => c.state === 'held');
 
   return {
     async listDevices() {
@@ -47,25 +60,59 @@ function createMockBackend() {
     onDeviceStatus(cb) { return statusEmitter.on(cb); },
 
     async dial(number) {
+      if (!canDial()) throw new Error('a call is in progress; put it on hold to dial another');
       const id = `mock-call-${++seq}`;
-      current = { id, direction: 'out', state: 'dialing', number, name: null, startedAt: null };
-      later(0, () => emitCall('dialing'));
-      later(60, () => emitCall('alerting'));
-      later(120, () => emitCall('active', { startedAt: new Date().toISOString() }));
+      calls.set(id, { id, direction: 'out', state: 'dialing', number, name: null, startedAt: null, multiparty: false });
+      later(0, () => emitCall(id, { state: 'dialing' }));
+      later(60, () => emitCall(id, { state: 'alerting' }));
+      later(120, () => emitCall(id, { state: 'active', startedAt: new Date().toISOString() }));
       return id;
     },
-    async answer() { emitCall('active', { startedAt: new Date().toISOString() }); },
-    async hangup() { emitCall('disconnected'); current = null; },
+    // A waiting call is answered with HoldAndAnswer on the real backend, which
+    // holds whatever is active first.
+    async answer(id) {
+      const c = calls.get(id);
+      if (!c) return;
+      if (c.state === 'waiting') {
+        for (const other of [...calls.values()]) {
+          if (other.state === 'active') emitCall(other.id, { state: 'held' });
+        }
+      }
+      emitCall(id, { state: 'active', startedAt: new Date().toISOString() });
+    },
+    // Hanging up a conference member ends the conference (HangupMultiparty).
+    async hangup(id) {
+      const c = calls.get(id);
+      if (!c) return;
+      const victims = c.multiparty ? [...calls.values()].filter((x) => x.multiparty) : [c];
+      for (const v of victims) emitCall(v.id, { state: 'disconnected' });
+    },
     async sendDtmf() {},
+    // CHLD=2: active <-> held, all at once.
+    async swapCalls() {
+      for (const c of [...calls.values()]) {
+        if (c.state === 'active') emitCall(c.id, { state: 'held' });
+        else if (c.state === 'held') emitCall(c.id, { state: 'active' });
+      }
+    },
+    // CHLD=3: every active and held call joins one active conference.
+    async createMultiparty() {
+      for (const c of [...calls.values()]) {
+        if (c.state === 'active' || c.state === 'held') emitCall(c.id, { state: 'active', multiparty: true });
+      }
+    },
     onCall(cb) { return callEmitter.on(cb); },
 
     // Mock-only, deliberately NOT part of the backend contract: lets the
     // incoming-call window and its notification be exercised without ringing a
-    // real phone. Without it the only way to test task 10 is a real call.
+    // real phone. A call arriving while another is live is 'waiting', exactly
+    // as oFono reports it, so KONNECT_MOCK_INCOMING after a dial exercises
+    // the call-waiting path.
     simulateIncoming(number = '+919804464251', name = null) {
       const id = `mock-call-${++seq}`;
-      current = { id, direction: 'in', state: 'incoming', number, name, startedAt: null };
-      callEmitter.emit(current);
+      const state = calls.size > 0 ? 'waiting' : 'incoming';
+      calls.set(id, { id, direction: 'in', state, number, name, startedAt: null, multiparty: false });
+      callEmitter.emit(calls.get(id));
       return id;
     },
 
