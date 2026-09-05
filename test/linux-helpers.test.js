@@ -114,3 +114,49 @@ test('connect(mac) targets the requested device, not the configured default', as
   await monitor.connect();
   assert.strictEqual(seen[1], '/org/bluez/hci0/dev_44_CD_0E_AD_5E_34');
 });
+
+// The Properties proxy device.js builds: GetAll per interface, plus the
+// PropertiesChanged subscription ensure() attaches. An interface not in
+// `props` throws BlueZ's real absent-interface shape so readAll() stays quiet.
+function fakeDeviceProps(props) {
+  return async () => ({
+    on() {}, off() {},
+    GetAll: async (iface) => {
+      if (props[iface]) return props[iface];
+      const err = new Error(`No such interface '${iface}'`);
+      err.type = 'org.freedesktop.DBus.Error.InvalidArgs';
+      err.name = 'DBusError';
+      throw err;
+    },
+  });
+}
+
+test('getStatus carries the PnP identity parsed from Modalias', async () => {
+  const monitor = createDeviceMonitor({
+    mac: '44:CD:0E:AD:5E:34',
+    getInterfaceFn: fakeDeviceProps({
+      'org.bluez.Device1': {
+        Connected: { value: true }, Alias: { value: 'F120B' },
+        Modalias: { value: 'bluetooth:v001Dp1200d1436' },
+      },
+    }),
+    systemBusFn: () => ({}),
+  });
+  const s = await monitor.getStatus();
+  assert.strictEqual(s.model, 'F120B');
+  assert.deepStrictEqual(s.pnp, { vendor: '001D', product: '1200', version: '20.3.6' });
+  assert.strictEqual(s.error, null);
+});
+
+test('a device with no Modalias reports pnp null, not an error', async () => {
+  const monitor = createDeviceMonitor({
+    mac: '44:CD:0E:AD:5E:34',
+    getInterfaceFn: fakeDeviceProps({
+      'org.bluez.Device1': { Connected: { value: false }, Name: { value: 'F120B' } },
+    }),
+    systemBusFn: () => ({}),
+  });
+  const s = await monitor.getStatus();
+  assert.strictEqual(s.pnp, null);
+  assert.strictEqual(s.error, null);
+});
