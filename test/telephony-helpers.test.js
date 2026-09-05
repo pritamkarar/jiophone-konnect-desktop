@@ -64,14 +64,24 @@ test('other telephony failures pass through with their detail intact', () => {
     describeTelephonyError(new Error('connection timed out')), 'connection timed out');
 });
 
+// What the live F120B reports (spec 2026-09-05 §2): no SubscriberNumbers.
+const DEFAULT_HANDSFREE = {
+  BatteryChargeLevel: { value: 4 },
+  Features: { value: ['three-way-calling', 'echo-canceling-and-noise-reduction', 'release-all-held', 'create-multiparty'] },
+};
+
 // Fakes org.ofono over dbus-next's getInterfaceFn/systemBusFn injection
 // seams (the same pattern device.js's tests use) so createTelephony's real
 // watchCall/unwatchCall/start logic runs against scripted signals instead of
 // the live bus. One fake object per (path, interface name), so a test can
-// grab it back out of `registry` and fire signals on it.
-function fakeOfono({ calls = [] } = {}) {
+// grab it back out of `registry` and fire signals on it. Manager and call
+// method invocations are recorded in order so routing can be asserted.
+// `handsfree: null` simulates the modem being offline for that interface.
+function fakeOfono({ calls = [], handsfree = DEFAULT_HANDSFREE } = {}) {
   const registry = new Map();
   const vcmListenerCounts = { CallAdded: 0, CallRemoved: 0 };
+  const managerCalls = [];
+  const callCalls = [];
 
   function makeEmitter() {
     const listeners = new Map();
@@ -95,9 +105,15 @@ function fakeOfono({ calls = [] } = {}) {
         SetProperty: async () => {},
       }));
     }
+    if (ifaceName === 'org.ofono.Handsfree') {
+      // dbus-next's real wording when oFono has dropped the interface.
+      if (!handsfree) throw new Error('interface not found in proxy object: org.ofono.Handsfree');
+      return getOrCreate(path, ifaceName, () => ({ GetProperties: async () => handsfree }));
+    }
     if (ifaceName === 'org.ofono.VoiceCallManager') {
       return getOrCreate(path, ifaceName, () => {
         const e = makeEmitter();
+        const record = (name) => async () => { managerCalls.push(name); };
         return {
           ...e,
           on(event, cb) {
@@ -107,19 +123,29 @@ function fakeOfono({ calls = [] } = {}) {
           GetCalls: async () => calls,
           Dial: async () => '/call/dialed',
           SendTones: async () => {},
+          HoldAndAnswer: record('HoldAndAnswer'),
+          HangupMultiparty: record('HangupMultiparty'),
+          SwapCalls: record('SwapCalls'),
+          CreateMultiparty: record('CreateMultiparty'),
         };
       });
     }
     if (ifaceName === 'org.ofono.VoiceCall') {
       return getOrCreate(path, ifaceName, () => {
         const e = makeEmitter();
-        return { ...e, Answer: async () => {}, Hangup: async () => {} };
+        return {
+          ...e,
+          Answer: async () => { callCalls.push('Answer'); },
+          Hangup: async () => { callCalls.push('Hangup'); },
+        };
       });
     }
     throw new Error(`fakeOfono: unexpected interface requested: ${ifaceName}`);
   };
 
-  return { getInterfaceFn, systemBusFn: () => ({}), registry, vcmListenerCounts };
+  return {
+    getInterfaceFn, systemBusFn: () => ({}), registry, vcmListenerCounts, managerCalls, callCalls,
+  };
 }
 
 const tick = () => new Promise((r) => setImmediate(r));
@@ -291,4 +317,38 @@ test('a bound telephony verifying a DIFFERENT mac probes that mac, not its own',
     `expected every probe to use ${modemPathFor(OTHER_MAC)}, saw ${JSON.stringify(seenPaths)}`);
   assert.ok(!seenPaths.some((p) => p.includes('44_CD_0E_AD_5E_34')),
     'must not probe the bound handset when a different mac was requested');
+});
+
+test('toCall carries the Multiparty flag, false when absent', () => {
+  assert.strictEqual(toCall(PATH, { State: 'active', Multiparty: true }).multiparty, true);
+  assert.strictEqual(toCall(PATH, { State: 'active' }).multiparty, false);
+});
+
+test('getHandsfree maps battery, features and subscriber numbers', async () => {
+  const f = fakeOfono({ handsfree: {
+    BatteryChargeLevel: { value: 4 },
+    Features: { value: ['three-way-calling', 'create-multiparty'] },
+    SubscriberNumbers: { value: ['+919804464251'] },
+  } });
+  const telephony = createTelephony({ mac: MAC, getInterfaceFn: f.getInterfaceFn, systemBusFn: f.systemBusFn });
+  assert.deepStrictEqual(await telephony.getHandsfree(), {
+    battery: 80, features: ['three-way-calling', 'create-multiparty'], numbers: ['+919804464251'], error: null,
+  });
+});
+
+test('getHandsfree reports an empty numbers list when the handset omits SubscriberNumbers, as the F120B does', async () => {
+  const f = fakeOfono();
+  const telephony = createTelephony({ mac: MAC, getInterfaceFn: f.getInterfaceFn, systemBusFn: f.systemBusFn });
+  const h = await telephony.getHandsfree();
+  assert.deepStrictEqual(h.numbers, []);
+  assert.ok(h.features.includes('three-way-calling'));
+  assert.strictEqual(h.error, null);
+});
+
+test('getHandsfree reports offline with empty lists when the interface is gone', async () => {
+  const f = fakeOfono({ handsfree: null });
+  const telephony = createTelephony({ mac: MAC, getInterfaceFn: f.getInterfaceFn, systemBusFn: f.systemBusFn });
+  assert.deepStrictEqual(await telephony.getHandsfree(), {
+    battery: null, features: [], numbers: [], error: 'handset modem offline',
+  });
 });

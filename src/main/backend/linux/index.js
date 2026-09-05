@@ -132,18 +132,18 @@ function createLinuxBackend({ mac = null, getSetting = () => null } = {}) {
     adapter: adapterNamespace(),
 
     async getStatus() {
-      const [d, n, b] = await Promise.all([
-        device.getStatus(), telephony.getNetwork(), telephony.getBattery(),
+      const [d, n, h] = await Promise.all([
+        device.getStatus(), telephony.getNetwork(), telephony.getHandsfree(),
       ]);
       return {
         connected: d.connected,
         model: d.model,
         // oFono first: BlueZ's Battery1 is absent while oFono owns HFP.
-        battery: b.battery ?? d.battery,
+        battery: h.battery ?? d.battery,
         signal: n.signal, operator: n.operator, roaming: n.roaming,
         // A BlueZ fault outranks an oFono one: if the device link is down,
         // "handset modem offline" is a symptom, not the cause.
-        error: d.error ?? n.error ?? b.error ?? null,
+        error: d.error ?? n.error ?? h.error ?? null,
       };
     },
     onDeviceStatus(cb) { return statusEmitter.on(cb); },

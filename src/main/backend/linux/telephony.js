@@ -52,6 +52,9 @@ function toCall(path, rawProps, direction) {
     number: p.LineIdentification || null,
     name: p.Name ? p.Name : null,
     startedAt: p.StartTime || null,
+    // True for every member of a conference. Hanging one of them up needs
+    // the manager, not the call (see hangup()).
+    multiparty: p.Multiparty === true,
   };
 }
 
@@ -198,21 +201,26 @@ function createTelephony({ mac, getInterfaceFn = getInterface, systemBusFn = sys
   return {
     ensureOnline,
 
-    // Battery comes from HFP's 0-5 `battchg` indicator, surfaced by oFono.
-    // BlueZ's Battery1 is absent in this configuration (see device.js), so
-    // this is the real source. Scale is 20% per level: level 4 reads as 80%,
-    // which matches what BlueZ reported before oFono took over HFP.
-    async getBattery() {
+    // One GetProperties, three answers. Battery comes from HFP's 0-5
+    // `battchg` indicator (BlueZ's Battery1 is absent while oFono owns HFP,
+    // see device.js); 20% per level matches what BlueZ reported before oFono
+    // took over. Features is oFono's list of what the handset's AG advertised
+    // (the F120B: three-way-calling, release-all-held, create-multiparty) and
+    // gates the hold/swap/merge buttons. SubscriberNumbers is optional in
+    // oFono and absent on the F120B, which answers AT+CNUM with nothing.
+    async getHandsfree() {
       try {
         const hf = await iface(modemPath, 'org.ofono.Handsfree');
         const p = unwrap(await hf.GetProperties());
         const level = p.BatteryChargeLevel;
         return {
           battery: typeof level === 'number' ? Math.max(0, Math.min(100, level * 20)) : null,
+          features: Array.isArray(p.Features) ? p.Features : [],
+          numbers: Array.isArray(p.SubscriberNumbers) ? p.SubscriberNumbers : [],
           error: null,
         };
       } catch (err) {
-        return { battery: null, error: describeTelephonyError(err) };
+        return { battery: null, features: [], numbers: [], error: describeTelephonyError(err) };
       }
     },
 
