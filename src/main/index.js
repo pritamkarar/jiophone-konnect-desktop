@@ -577,7 +577,7 @@ app.whenReady().then(async () => {
     broadcast,
     // Reached lazily: callSession is assigned on the next statement.
     hasLiveCall: () => callSession?.hasLiveCall() ?? false,
-    canDial: () => callSession?.canDial() ?? true,
+    canDial: () => callSession?.canDial() ?? false,
     liveCalls: () => callSession?.liveCalls() ?? [],
     getMac: () => boundMac,
     selectDevice,

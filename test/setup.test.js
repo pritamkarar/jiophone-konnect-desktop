@@ -415,7 +415,8 @@ test('call:dial refuses a number that is not one, before reaching the backend', 
   // not a guarantee: this channel survives a renderer reload and is the point
   // every dial path in the app converges on. Letters must not reach oFono.
   const dialled = [];
-  const handlers = captureHandlers({ dial: async (n) => { dialled.push(n); } });
+  // Guard wired open on purpose: this test is about number validation, not the dial guard.
+  const handlers = captureHandlers({ dial: async (n) => { dialled.push(n); } }, { canDial: () => true });
   await assert.rejects(async () => handlers['call:dial'](null, 'abcdef'), /dial/i);
   await assert.rejects(async () => handlers['call:dial'](null, '+91 98765 43210'), /dial/i);
   assert.deepStrictEqual(dialled, []);
