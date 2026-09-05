@@ -250,14 +250,49 @@ function createTelephony({ mac, getInterfaceFn = getInterface, systemBusFn = sys
       return path;
     },
 
+    // oFono defines VoiceCall.Answer for the 'incoming' state only. A second
+    // inbound call while one is up is 'waiting', and is answered through the
+    // manager: HoldAndAnswer is one CHLD=2 that holds the active call and
+    // accepts the waiting one. oFono refuses it when a held AND an active
+    // call already exist - there is no third slot - and that error surfaces
+    // to the caller as any other.
     async answer(callId) {
+      if (watched.get(callId)?.props?.State === 'waiting') {
+        const mgr = await start();
+        await mgr.HoldAndAnswer();
+        return;
+      }
       const call = await iface(callId, 'org.ofono.VoiceCall');
       await call.Answer();
     },
 
+    // Hanging up ONE member of a conference needs release-specified-active-
+    // call (CHLD=1x), which the F120B does not advertise. "Hang up the
+    // conference" is what the button means, and that is HangupMultiparty.
+    // A held or waiting call still goes through VoiceCall.Hangup, which oFono
+    // maps to CHLD=0 (release-all-held, advertised).
     async hangup(callId) {
+      if (watched.get(callId)?.props?.Multiparty === true) {
+        const mgr = await start();
+        await mgr.HangupMultiparty();
+        return;
+      }
       const call = await iface(callId, 'org.ofono.VoiceCall');
       await call.Hangup();
+    },
+
+    // CHLD=2. Holds the lone active call, resumes the lone held call, or
+    // swaps one of each. oFono refuses it while a call is waiting; the
+    // renderer hides the button in that state rather than let it fail.
+    async swapCalls() {
+      const mgr = await start();
+      await mgr.SwapCalls();
+    },
+
+    // CHLD=3. Needs exactly one active and one held call.
+    async createMultiparty() {
+      const mgr = await start();
+      await mgr.CreateMultiparty();
     },
 
     async sendDtmf(digits) {

@@ -352,3 +352,60 @@ test('getHandsfree reports offline with empty lists when the interface is gone',
     battery: null, features: [], numbers: [], error: 'handset modem offline',
   });
 });
+
+// Boots telephony, attaches its CallAdded listener, and adds one call with
+// the given (already-unwrapped-shaped) properties.
+async function withCall(f, props) {
+  const telephony = createTelephony({ mac: MAC, getInterfaceFn: f.getInterfaceFn, systemBusFn: f.systemBusFn });
+  telephony.onCall(() => {});
+  await tick();
+  const vcm = f.registry.get(`${modemPathFor(MAC)}|org.ofono.VoiceCallManager`);
+  vcm.emit('CallAdded', PATH, props);
+  await tick();
+  return telephony;
+}
+
+test('answer on a waiting call goes through HoldAndAnswer, never VoiceCall.Answer', async () => {
+  const f = fakeOfono();
+  const telephony = await withCall(f, { State: { value: 'waiting' }, LineIdentification: { value: '+919804464251' } });
+  await telephony.answer(PATH);
+  assert.deepStrictEqual(f.managerCalls, ['HoldAndAnswer']);
+  assert.deepStrictEqual(f.callCalls, []);
+  telephony.dispose();
+});
+
+test('answer on an incoming call still uses VoiceCall.Answer', async () => {
+  const f = fakeOfono();
+  const telephony = await withCall(f, { State: { value: 'incoming' } });
+  await telephony.answer(PATH);
+  assert.deepStrictEqual(f.callCalls, ['Answer']);
+  assert.deepStrictEqual(f.managerCalls, []);
+  telephony.dispose();
+});
+
+test('hangup on a conference member ends the conference through HangupMultiparty', async () => {
+  const f = fakeOfono();
+  const telephony = await withCall(f, { State: { value: 'active' }, Multiparty: { value: true } });
+  await telephony.hangup(PATH);
+  assert.deepStrictEqual(f.managerCalls, ['HangupMultiparty']);
+  assert.deepStrictEqual(f.callCalls, []);
+  telephony.dispose();
+});
+
+test('hangup on an ordinary call still uses VoiceCall.Hangup', async () => {
+  const f = fakeOfono();
+  const telephony = await withCall(f, { State: { value: 'active' } });
+  await telephony.hangup(PATH);
+  assert.deepStrictEqual(f.callCalls, ['Hangup']);
+  assert.deepStrictEqual(f.managerCalls, []);
+  telephony.dispose();
+});
+
+test('swapCalls and createMultiparty call the manager', async () => {
+  const f = fakeOfono();
+  const telephony = createTelephony({ mac: MAC, getInterfaceFn: f.getInterfaceFn, systemBusFn: f.systemBusFn });
+  await telephony.swapCalls();
+  await telephony.createMultiparty();
+  assert.deepStrictEqual(f.managerCalls, ['SwapCalls', 'CreateMultiparty']);
+  telephony.dispose();
+});
