@@ -67,6 +67,7 @@ function registerIpc({
 
   const handlers = {
     'status:get': () => backend.getStatus(),
+    'app:version': () => app.getVersion(),
     'devices:list': () => backend.listDevices(),
     'devices:connect': (_e, mac) => backend.connect(mac),
     'devices:disconnect': () => backend.disconnect(),

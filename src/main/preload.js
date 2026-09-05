@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // entire renderer-facing API surface.
 contextBridge.exposeInMainWorld('konnect', {
   getStatus: () => ipcRenderer.invoke('status:get'),
+  appVersion: () => ipcRenderer.invoke('app:version'),
   listDevices: () => ipcRenderer.invoke('devices:list'),
   connectDevice: (mac) => ipcRenderer.invoke('devices:connect', mac),
   disconnectDevice: () => ipcRenderer.invoke('devices:disconnect'),

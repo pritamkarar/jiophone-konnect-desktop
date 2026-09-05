@@ -170,6 +170,7 @@ body {
 .device-chip img { height: 44px; flex: none; }
 .device-chip .n { font: 600 12.5px var(--sans); }
 .device-chip .s { font: 400 11px var(--sans); color: var(--ok); }
+#app-version { text-align: center; font-size: 10.5px; }
 
 main { min-height: 0; display: grid; }
 .view { display: none; min-height: 0; }

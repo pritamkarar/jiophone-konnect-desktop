@@ -142,6 +142,7 @@ function showManualStep(container, result) {
 $('#run-checks').addEventListener('click', renderChecks);
 window.konnect.onStatus(renderStatus);
 window.konnect.getStatus().then(renderStatus).catch(() => {});
+window.konnect.appVersion().then((v) => { $('#app-version').textContent = `v${v}`; }).catch(() => {});
 
 // Manual routing's whole hazard is a failure the user cannot hear the cause
 // of - a dead-silent call is otherwise indistinguishable from a working one.
